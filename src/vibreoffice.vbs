@@ -173,9 +173,10 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         bConsumeInput = False ' Allow all inputs
 
     ' If Change Mode
-    ElseIf ProcessModeKey(oEvent) Then
+    ElseIf MODE = "NORMAL" And ProcessModeKey(oEvent) Then
         ' Pass
 
+    ' Multiplier Key
     ElseIf ProcessNumberKey(oEvent) Then
         bIsMultiplier = True
 
@@ -275,8 +276,12 @@ Function ProcessNormalKey(oEvent)
     For i = 1 To getMultiplier()
         dim bMatchedMovement, bMatchedDelete
 
+        ' Movement Key
         bMatchedMovement = ProcessMovementKey(oEvent.KeyChar, bIsVisual, oEvent.Modifiers)
-        bMatchedDelete = ProcessDeleteKey(oEvent)
+        ' Delete Key
+        bMatchedDelete = ProcessDeleteKey(oEvent.KeyChar)
+        ' Selection Modifier Key
+
         bMatched = bMatched or bMatchedMovement or bMatchedDelete
 
         ' Special case: Break from For loop if in visual mode and has deleted,
@@ -288,23 +293,59 @@ Function ProcessNormalKey(oEvent)
 End Function
 
 
-Function ProcessDeleteKey(oEvent)
+Function ProcessDeleteKey(keyChar)
     dim oTextCursor, bMatched
-    oTextCursor = getTextCursor()
     bMatched = True
-    Select Case oEvent.KeyChar
-        ' Case "d":
-        ' setSpecial("d")
 
+    Select Case keyChar
         Case "x":
+            oTextCursor = getTextCursor()
             thisComponent.getCurrentController.Select(oTextCursor)
             oTextCursor.setString("")
+
+        Case "D", "C":
+            If MODE = "VISUAL" Then
+                ProcessMovementKey("^", False)
+                ProcessMovementKey("$", True)
+                ProcessMovementKey("l", True)
+            Else
+                ' Deselect
+                oTextCursor = getTextCursor()
+                oTextCursor.gotoRange(oTextCursor.getStart(), False)
+                thisComponent.getCurrentController.Select(oTextCursor)
+                ProcessMovementKey("$", True)
+            End If
+
+            getTextCursor().setString("")
+
+            If keyChar = "D" Then
+                gotoMode("NORMAL")
+            ElseIf keyChar = "C" Then
+                gotoMode("INSERT")
+            End IF
+
+        Case "d", "c":
+            If MODE = "VISUAL" Then
+                oTextCursor = getTextCursor()
+                thisComponent.getCurrentController.Select(oTextCursor)
+                oTextCursor.setString("")
+
+
+                ' c/C
+                If keyChar = "c" Or keyChar = "C" Then
+                    gotoMode("INSERT")
+                End If
+
+                ' Always go back to NORMAL mode after delete in VISUAL mode
+                ' If MODE = "VISUAL" Then gotoMode("NORMAL")
+            End If
+
+
         Case Else:
             bMatched = False
-
     End Select
 
-ProcessDeleteKey = bMatched
+    ProcessDeleteKey = bMatched
 End Function
 
 
@@ -322,13 +363,13 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
 
     ' Check for modified keys (Ctrl, Alt, not Shift)
     If keyModifiers > 1 Then
-        dim isControl
-        isControl = (keyModifiers = 2) or (keyModifiers = 8)
+        dim bIsControl
+        bIsControl = (keyModifiers = 2) or (keyModifiers = 8)
 
         ' Ctrl+d and Ctrl+u
-        If isControl and keyChar = "d" Then
+        If bIsControl and keyChar = "d" Then
             getCursor().ScreenDown(bExpand)
-        ElseIf isControl and keyChar = "u" Then
+        ElseIf bIsControl and keyChar = "u" Then
             getCursor().ScreenUp(bExpand)
         Else
             bMatched = False
