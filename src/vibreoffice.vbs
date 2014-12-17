@@ -67,7 +67,7 @@ Sub setRawStatus(rawText)
 End Sub
 
 Sub setStatus(statusText)
-    setRawStatus(MODE & " | " & statusText)
+    setRawStatus(MODE & " | " & statusText & " | special: " & getSpecial())
 End Sub
 
 Sub setMode(modeName)
@@ -93,6 +93,46 @@ Function gotoMode(sMode)
     End Select
 End Function
 
+Sub cursorReset(oTextCursor)
+    oTextCursor.gotoRange(oTextCursor.getStart(), False)
+    oTextCursor.goRight(1, False)
+    oTextCursor.goLeft(1, True)
+    thisComponent.getCurrentController.Select(oTextCursor)
+End Sub
+
+
+' -----------------------------------
+' Special Mode (for chained commands)
+' -----------------------------------
+global SPECIAL_MODE As string
+global SPECIAL_COUNT As integer
+
+Sub setSpecial(specialName)
+    SPECIAL_MODE = specialName
+
+    If specialName = "" Then
+        SPECIAL_COUNT = 0
+    Else
+        SPECIAL_COUNT = 2
+    End If
+End Sub
+
+Function getSpecial()
+    getSpecial = SPECIAL_MODE
+End Function
+
+Sub delaySpecialReset()
+    SPECIAL_COUNT = SPECIAL_COUNT + 1
+End Sub
+
+Sub resetSpecial(Optional bForce)
+    If IsMissing(bForce) Then bForce = False
+
+    SPECIAL_COUNT = SPECIAL_COUNT - 1
+    If SPECIAL_COUNT <= 0 Or bForce Then
+        setSpecial("")
+    End If
+End Sub
 
 ' --------------------
 ' Multiplier functions
@@ -159,48 +199,58 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         Exit Function
     End If
 
-    dim bConsumeInput, bIsMultiplier, bIsModified, oTextCursor
+    dim bConsumeInput, bIsMultiplier, bIsModified, bIsSpecial, oTextCursor
     bConsumeInput = True ' Block all inputs by default
     bIsMultiplier = False ' reset multiplier by default
     bIsModified = oEvent.Modifiers > 1 ' If Ctrl or Alt is held down. (Shift=1)
+    bIsSpecial = getSpecial() <> ""
 
     ' --------------------------
     ' Process global shortcuts, exit if matched (like ESC)
     If ProcessGlobalKey(oEvent) Then
         ' Pass
 
+    ' If INSERT mode, allow all inputs
     ElseIf MODE = "INSERT" Then
-        bConsumeInput = False ' Allow all inputs
+        bConsumeInput = False
 
     ' If Change Mode
-    ElseIf MODE = "NORMAL" And ProcessModeKey(oEvent) Then
+    ElseIf MODE = "NORMAL" And Not bIsSpecial And ProcessModeKey(oEvent) Then
         ' Pass
 
     ' Multiplier Key
     ElseIf ProcessNumberKey(oEvent) Then
         bIsMultiplier = True
+        delaySpecialReset()
 
     ' Normal Key
-    ElseIf Not ProcessNormalKey(oEvent) and bIsModified Then
-        ' If is modified but doesn't match a normal command, allow input
-        '   (Useful for built-in shortcuts like Ctrl+s, Ctrl+w)
+    ElseIf ProcessNormalKey(oEvent) Then
+        ' Pass
+
+    ' If is modified but doesn't match a normal command, allow input
+    '   (Useful for built-in shortcuts like Ctrl+s, Ctrl+w)
+    ElseIf bIsModified Then
         bConsumeInput = False
+
+    ' If bIsSpecial but nothing matched, return to normal mode
+    ElseIf bIsSpecial Then
+        gotoMode("NORMAL")
     End If
     ' --------------------------
 
+    ' Reset Special
+    resetSpecial()
 
-    ' Reset multiplier
-    If not bIsMultiplier Then resetMultiplier()
+    ' Reset multiplier if last input was not number and not in special mode
+    If not bIsMultiplier and getSpecial() = "" Then
+        resetMultiplier()
+    End If
     setStatus(getMultiplier())
 
     ' Show terminal-like cursor
     oTextCursor = getTextCursor()
     If MODE = "NORMAL" Then
-        oTextCursor.gotoRange(oTextCursor.getStart(), False)
-        oTextCursor.goRight(1, False)
-        oTextCursor.goLeft(1, True)
-        thisComponent.getCurrentController.Select(oTextCursor)
-
+        cursorReset(oTextCursor)
     ElseIf MODE = "INSERT" Then
         oTextCursor.gotoRange(oTextCursor.getStart(), False)
         thisComponent.getCurrentController.Select(oTextCursor)
@@ -228,6 +278,7 @@ Function ProcessGlobalKey(oEvent)
                 getCursor().goLeft(1, False)
             End If
 
+            resetSpecial(True)
             gotoMode("NORMAL")
         Case Else:
             bMatched = False
@@ -270,23 +321,52 @@ End Function
 
 
 Function ProcessNormalKey(oEvent)
-    dim i, bMatched, bIsVisual
-    bMatched = False
+    dim i, bMatched, bIsVisual, iIterations
     bIsVisual = (MODE = "VISUAL") ' is this hardcoding bad? what about visual block?
-    For i = 1 To getMultiplier()
-        dim bMatchedMovement, bMatchedDelete
+
+    ' ----------------------
+    ' 1. Check Movement Key
+    ' ----------------------
+    iIterations = getMultiplier()
+    bMatched = False
+    For i = 1 To iIterations
+        dim bMatchedMovement
 
         ' Movement Key
         bMatchedMovement = ProcessMovementKey(oEvent.KeyChar, bIsVisual, oEvent.Modifiers)
+        bMatched = bMatched or bMatchedMovement
+    Next i
+
+    If bMatched Then
+        ' If Special: d/c + movement
+        If bMatched And (getSpecial() = "d" Or getSpecial() = "c") Then
+            getTextCursor().setString("")
+
+            If getSpecial() = "d" Then gotoMode("NORMAL")
+            If getSpecial() = "c" Then gotoMode("INSERT")
+
+        End If
+
+        ProcessNormalKey = True
+        Exit Function
+    End If
+
+    ' --------------------
+    ' 2. Check Delete Key
+    ' --------------------
+    bMatched = False
+
+    ' Only 'x' can be done more than once
+    If oEvent.KeyChar <> "x" Then iIterations = 1
+    For i = 1 To iIterations
+        dim bMatchedDelete
+
         ' Delete Key
         bMatchedDelete = ProcessDeleteKey(oEvent.KeyChar)
-        ' Selection Modifier Key
 
-        bMatched = bMatched or bMatchedMovement or bMatchedDelete
+        ' Selection Modifier Key ??
 
-        ' Special case: Break from For loop if in visual mode and has deleted,
-        ' since multiplier should not be applied
-        If bIsVisual and bMatchedDelete Then Exit For
+        bMatched = bMatched or bMatchedDelete
     Next i
 
     ProcessNormalKey = bMatched
@@ -302,6 +382,12 @@ Function ProcessDeleteKey(keyChar)
             oTextCursor = getTextCursor()
             thisComponent.getCurrentController.Select(oTextCursor)
             oTextCursor.setString("")
+
+            ' Reset Cursor
+            cursorReset(oTextCursor)
+
+            ' Goto NORMAL mode (in the case of VISUAL mode)
+            gotoMode("NORMAL")
 
         Case "D", "C":
             If MODE = "VISUAL" Then
@@ -330,14 +416,12 @@ Function ProcessDeleteKey(keyChar)
                 thisComponent.getCurrentController.Select(oTextCursor)
                 oTextCursor.setString("")
 
+                If keyChar = "c" Then gotoMode("INSERT")
+                If keyChar = "d" Then gotoMode("NORMAL")
 
-                ' c/C
-                If keyChar = "c" Or keyChar = "C" Then
-                    gotoMode("INSERT")
-                End If
-
-                ' Always go back to NORMAL mode after delete in VISUAL mode
-                ' If MODE = "VISUAL" Then gotoMode("NORMAL")
+            ElseIf MODE = "NORMAL" Then
+                setSpecial(keyChar)
+                gotoMode("VISUAL")
             End If
 
 
@@ -465,9 +549,7 @@ Sub initVibreoffice
 
     ' Show terminal cursor
     oTextCursor = getTextCursor()
-    oTextCursor.goRight(1, False)
-    oTextCursor.goLeft(1, True)
-    thisComponent.getCurrentController.Select(oTextCursor)
+    cursorReset(oTextCursor)
 
     sStartXKeyHandler()
 End Sub
