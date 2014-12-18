@@ -276,7 +276,10 @@ function KeyHandler_KeyPressed(oEvent) as boolean
 
     ' Show terminal-like cursor
     oTextCursor = getTextCursor()
-    If MODE = "NORMAL" Then
+    If oEvent.Modifiers = 2 Or oEvent.Modifiers = 8 And oEvent.KeyChar = "c" Then
+        ' Allow Ctrl+c for Copy, so don't change cursor
+        ' Pass
+    ElseIf MODE = "NORMAL" Then
         cursorReset(oTextCursor)
     ElseIf MODE = "INSERT" Then
         oTextCursor.gotoRange(oTextCursor.getStart(), False)
@@ -328,8 +331,10 @@ End Function
 
 
 Function ProcessModeKey(oEvent)
+    dim bIsModified
+    bIsModified = oEvent.Modifiers > 1 ' If Ctrl or Alt is held down. (Shift=1)
     ' Don't change modes in these circumstances
-    If MODE <> "NORMAL" Or getSpecial <> "" Or getMovementModifier() <> "" Then
+    If MODE <> "NORMAL" Or bIsModified Or getSpecial <> "" Or getMovementModifier() <> "" Then
         ProcessModeKey = False
         Exit Function
     End If
@@ -388,9 +393,16 @@ Function ProcessNormalKey(oEvent)
         Exit Function
     End If
 
+
     ' --------------------
     ' 2. Check Delete Key
     ' --------------------
+
+    ' There are no delete keys with modifier keys, so exit early
+    If oEvent.Modifiers > 1 Then
+        ProcessNormalKey = False
+        Exit Function
+    End If
 
     ' Only 'x' or Special (dd, cc) can be done more than once
     If oEvent.KeyChar <> "x" and getSpecial() = "" Then
