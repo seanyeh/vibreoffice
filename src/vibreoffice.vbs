@@ -67,7 +67,7 @@ Sub setRawStatus(rawText)
 End Sub
 
 Sub setStatus(statusText)
-    setRawStatus(MODE & " | " & statusText & " | special: " & getSpecial())
+    setRawStatus(MODE & " | " & statusText & " | special: " & getSpecial() & " | " & "modifier: " & getMovementModifier())
 End Sub
 
 Sub setMode(modeName)
@@ -79,6 +79,7 @@ Function gotoMode(sMode)
     Select Case sMode
         Case "NORMAL":
             setMode("NORMAL")
+            setMovementModifier("")
         Case "INSERT":
             setMode("INSERT")
         Case "VISUAL":
@@ -99,6 +100,10 @@ Sub cursorReset(oTextCursor)
     oTextCursor.goLeft(1, True)
     thisComponent.getCurrentController.Select(oTextCursor)
 End Sub
+
+Function samePos(oPos1, oPos2)
+    samePos = oPos1.X() = oPos2.X() And oPos1.Y() = oPos2.Y()
+End FUnction
 
 
 ' -----------------------------------
@@ -133,6 +138,22 @@ Sub resetSpecial(Optional bForce)
         setSpecial("")
     End If
 End Sub
+
+
+' -----------------
+' Movement Modifier
+' -----------------
+'f,i,a
+global MOVEMENT_MODIFIER As string
+
+Sub setMovementModifier(modifierName)
+    MOVEMENT_MODIFIER = modifierName
+End Sub
+
+Function getMovementModifier()
+    getMovementModifier = MOVEMENT_MODIFIER
+End Function
+
 
 ' --------------------
 ' Multiplier functions
@@ -215,7 +236,8 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         bConsumeInput = False
 
     ' If Change Mode
-    ElseIf MODE = "NORMAL" And Not bIsSpecial And ProcessModeKey(oEvent) Then
+    ' ElseIf MODE = "NORMAL" And Not bIsSpecial And getMovementModifier() = "" And ProcessModeKey(oEvent) Then
+    ElseIf ProcessModeKey(oEvent) Then
         ' Pass
 
     ' Multiplier Key
@@ -232,6 +254,11 @@ function KeyHandler_KeyPressed(oEvent) as boolean
     ElseIf bIsModified Then
         bConsumeInput = False
 
+    ' Movement modifier here?
+    ElseIf ProcessMovementModifierKey(oEvent.KeyChar) Then
+        ' Pass
+
+
     ' If bIsSpecial but nothing matched, return to normal mode
     ElseIf bIsSpecial Then
         gotoMode("NORMAL")
@@ -242,7 +269,7 @@ function KeyHandler_KeyPressed(oEvent) as boolean
     resetSpecial()
 
     ' Reset multiplier if last input was not number and not in special mode
-    If not bIsMultiplier and getSpecial() = "" Then
+    If not bIsMultiplier and getSpecial() = "" and getMovementModifier() = "" Then
         resetMultiplier()
     End If
     setStatus(getMultiplier())
@@ -301,6 +328,13 @@ End Function
 
 
 Function ProcessModeKey(oEvent)
+    ' Don't change modes in these circumstances
+    If MODE <> "NORMAL" Or getSpecial <> "" Or getMovementModifier() <> "" Then
+        ProcessModeKey = False
+        Exit Function
+    End If
+
+    ' Mode matching
     dim bMatched
     bMatched = True
     Select Case oEvent.KeyChar
@@ -336,6 +370,9 @@ Function ProcessNormalKey(oEvent)
         bMatchedMovement = ProcessMovementKey(oEvent.KeyChar, bIsVisual, oEvent.Modifiers)
         bMatched = bMatched or bMatchedMovement
     Next i
+
+    ' Reset Movement Modifier
+    setMovementModifier("")
 
     If bMatched Then
         ' If Special: d/c + movement
@@ -466,6 +503,89 @@ Function ProcessDeleteKey(keyChar)
 End Function
 
 
+Function ProcessMovementModifierKey(keyChar)
+    dim bMatched
+
+    bMatched = True
+    Select Case keyChar
+        Case "f", "t", "F", "T":
+            setMovementModifier(keyChar)
+        Case Else:
+            bMatched = False
+    End Select
+
+    ProcessMovementModifierKey = bMatched
+End Function
+
+
+' Returns the resulting TextCursor
+Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
+    ' REALLY ugly hack to figure out corner cases for backtracking
+    dim iBacktrack, oPos1, oPos2, oPos3
+    iBacktrack = 0
+
+    ' In forward searching, we start searching from the next character.
+    ' Thus, we need to move the cursor back 1 if the search fails.
+    ' Exception:
+    '   iBackTrack = 0 if cursor is at the end of the document
+    oPos1 = getCursor().getPosition()
+    getCursor().goRight(1, bExpand)
+    oPos2 = getCursor().getPosition()
+    If Not samePos(oPos1, oPos2) Then
+        getCursor().goRight(1, bExpand)
+        oPos3 = getCursor().getPosition()
+        ' Cursor is not at the end of the document
+        If Not samePos(oPos2, oPos3) Then
+            iBacktrack = 1
+            getCursor().goLeft(1, bExpand)
+        End If
+        getCursor().goLeft(1, bExpand)
+    End If
+    ' -------------------------
+
+
+    '-----------
+    ' Searching
+    '-----------
+    dim oSearchDesc, oFoundRange, bIsBackwards, oStartRange
+    bIsBackwards = (searchType = "F" Or searchType = "T")
+
+    If Not bIsBackwards Then
+        ' Start searching from next character
+        oTextCursor.goRight(1, bExpand)
+        oStartRange = oTextCursor.getEnd()
+    Else
+        oStartRange = oTextCursor.getStart()
+    End If
+
+    oSearchDesc = thisComponent.createSearchDescriptor()
+    oSearchDesc.setSearchString(keyChar)
+    oSearchDesc.SearchCaseSensitive = True
+    oSearchDesc.SearchBackwards = bIsBackwards
+
+    oFoundRange = thisComponent.findNext( oStartRange, oSearchDesc )
+
+    If not IsNull(oFoundRange) Then
+        oTextCursor.gotoRange(oFoundRange.getStart(), bExpand)
+
+        If getMovementModifier() = "t" Then
+            oTextCursor.goLeft(1, bExpand)
+        ElseIf getMovementModifier() = "T" Then
+            oTextCursor.goRight(1, bExpand)
+        End If
+
+    Else
+        ' Backtrack hack
+        dim i
+        For i = 1 to iBacktrack
+            If not bIsBackwards Then
+                oTextCursor.goLeft(1, bExpand)
+            End If
+        Next i
+    End If
+
+End Function
+
 ' -----------------------
 ' Main Movement Function
 ' -----------------------
@@ -499,63 +619,83 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ' Set global cursor to oTextCursor's new position if moved
     bSetCursor = True
 
-    Select Case keyChar
-        Case "l":
-            oTextCursor.goRight(1, bExpand)
-        Case "h":
-            oTextCursor.goLeft(1, bExpand)
 
-        ' oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn't (I dont know why).
-        ' So this is a weird hack
-        Case "k":
-            'oTextCursor.goUp(1, False)
-            getCursor().goUp(1, bExpand)
-            bSetCursor = False
-        Case "j":
-            'oTextCursor.goDown(1, False)
-            getCursor().goDown(1, bExpand)
-            bSetCursor = False
-        ' ----------
+    ' ------------------
+    ' Movement matching
+    ' ------------------
 
-        Case "^":
-            getCursor().gotoStartOfLine(bExpand)
-            bSetCursor = False
-        Case "$":
-            dim oldPos, newPos
-            oldPos = getCursor().getPosition()
-            getCursor().gotoEndOfLine(bExpand)
-            newPos = getCursor().getPosition()
+    ' Special Case: Modified movements
+    If getMovementModifier() <> "" Then
+        Select Case getMovementModifier()
+            ' ------------------
+            ' f,F,t,T searching
+            ' ------------------
+            Case "f", "t", "F", "T":
+                processSearchKey(oTextCursor, getMovementModifier(), keyChar, bExpand)
 
-            ' If the result is at the start of the line, then it must have
-            ' jumped down a line; goLeft to return to the previous line.
-            '   Except for: Empty lines (check for oldPos = newPos)
-            If getCursor().isAtStartOfLine() And oldPos.Y() <> newPos.Y() Then
-                getCursor().goLeft(1, bExpand)
-            End If
+            Case Else:
+                bSetCursor = False
+                bMatched = False
+        End Select
 
-            ' maybe eventually cursorGoto... should return True/False for bsetCursor
-            bSetCursor = False
+    ElseIf keyChar = "l" Then
+        oTextCursor.goRight(1, bExpand)
 
-        Case "w", "W":
-            oTextCursor.gotoNextWord(bExpand)
-        Case "b", "B":
-            oTextCursor.gotoPreviousWord(bExpand)
-        Case "e":
-            oTextCursor.gotoEndOfWord(bExpand)
+    ElseIf keyChar = "h" Then
+        oTextCursor.goLeft(1, bExpand)
 
-        Case ")":
-            oTextCursor.gotoNextSentence(bExpand)
-        Case "(":
-            oTextCursor.gotoPreviousSentence(bExpand)
-        Case "}":
-            oTextCursor.gotoNextParagraph(bExpand)
-        Case "{":
-            oTextCursor.gotoPreviousParagraph(bExpand)
+    ' oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn't (I dont know why).
+    ' So this is a weird hack
+    ElseIf keyChar = "k" Then
+        'oTextCursor.goUp(1, False)
+        getCursor().goUp(1, bExpand)
+        bSetCursor = False
 
-        Case Else:
-            bSetCursor = False
-            bMatched = False
-    End Select
+    ElseIf keyChar = "j" Then
+        'oTextCursor.goDown(1, False)
+        getCursor().goDown(1, bExpand)
+        bSetCursor = False
+    ' ----------
+
+    ElseIf keyChar = "^" Then
+        getCursor().gotoStartOfLine(bExpand)
+        bSetCursor = False
+    ElseIf keyChar = "$" Then
+        dim oldPos, newPos
+        oldPos = getCursor().getPosition()
+        getCursor().gotoEndOfLine(bExpand)
+        newPos = getCursor().getPosition()
+
+        ' If the result is at the start of the line, then it must have
+        ' jumped down a line; goLeft to return to the previous line.
+        '   Except for: Empty lines (check for oldPos = newPos)
+        If getCursor().isAtStartOfLine() And oldPos.Y() <> newPos.Y() Then
+            getCursor().goLeft(1, bExpand)
+        End If
+
+        ' maybe eventually cursorGoto... should return True/False for bsetCursor
+        bSetCursor = False
+
+    ElseIf keyChar = "w" or keyChar = "W" Then
+        oTextCursor.gotoNextWord(bExpand)
+    ElseIf keyChar = "b" or keyChar = "B" Then
+        oTextCursor.gotoPreviousWord(bExpand)
+    ElseIf keyChar = "e" Then
+        oTextCursor.gotoEndOfWord(bExpand)
+
+    ElseIf keyChar = ")" Then
+        oTextCursor.gotoNextSentence(bExpand)
+    ElseIf keyChar = "(" Then
+        oTextCursor.gotoPreviousSentence(bExpand)
+    ElseIf keyChar = "}" Then
+        oTextCursor.gotoNextParagraph(bExpand)
+    ElseIf keyChar = "{" Then
+        oTextCursor.gotoPreviousParagraph(bExpand)
+
+    Else
+        bSetCursor = False
+        bMatched = False
+    End If
 
     ' If oTextCursor was moved, set global cursor to its position
     If bSetCursor Then
