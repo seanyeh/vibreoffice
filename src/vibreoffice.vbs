@@ -354,10 +354,11 @@ Function ProcessNormalKey(oEvent)
     ' --------------------
     ' 2. Check Delete Key
     ' --------------------
-    bMatched = False
 
-    ' Only 'x' can be done more than once
-    If oEvent.KeyChar <> "x" Then iIterations = 1
+    ' Only 'x' or Special (dd, cc) can be done more than once
+    If oEvent.KeyChar <> "x" and getSpecial() = "" Then
+        iIterations = 1
+    End If
     For i = 1 To iIterations
         dim bMatchedDelete
 
@@ -374,60 +375,92 @@ End Function
 
 
 Function ProcessDeleteKey(keyChar)
-    dim oTextCursor, bMatched
+    dim oTextCursor, bMatched, bIsSpecial
     bMatched = True
+    bIsSpecial = getSpecial() <> ""
 
-    Select Case keyChar
-        Case "x":
+
+    If keyChar = "d" Or keyChar = "c" Then
+        ' Special Cases: 'dd' and 'cc'
+        If bIsSpecial Then
+            dim bIsSpecialCase
+            bIsSpecialCase = (keyChar = "d" And getSpecial() = "d") Or (keyChar = "c" And getSpecial() = "c")
+
+            If bIsSpecialCase Then
+                ProcessMovementKey("^", False)
+                ProcessMovementKey("j", True)
+
+                oTextCursor = getTextCursor()
+                thisComponent.getCurrentController.Select(oTextCursor)
+                oTextCursor.setString("")
+            Else
+                bMatched = False
+            End If
+
+            ' Go to INSERT mode after 'cc', otherwise NORMAL
+            If bIsSpecialCase And keyChar = "c" Then
+                gotoMode("INSERT")
+            Else
+                gotoMode("NORMAL")
+            End If
+
+
+        ' d or c in visual mode: delete selection
+        ElseIf MODE = "VISUAL" Then
             oTextCursor = getTextCursor()
             thisComponent.getCurrentController.Select(oTextCursor)
             oTextCursor.setString("")
 
-            ' Reset Cursor
-            cursorReset(oTextCursor)
+            If keyChar = "c" Then gotoMode("INSERT")
+            If keyChar = "d" Then gotoMode("NORMAL")
 
-            ' Goto NORMAL mode (in the case of VISUAL mode)
+        ' Enter Special mode: 'd' or 'c'
+        ElseIf MODE = "NORMAL" Then
+            setSpecial(keyChar)
+            gotoMode("VISUAL")
+        End If
+
+
+    ' Otherwise, ignore if bIsSpecial
+    ElseIf bIsSpecial Then
+        bMatched = False
+
+
+    ElseIf keyChar = "x" Then
+        oTextCursor = getTextCursor()
+        thisComponent.getCurrentController.Select(oTextCursor)
+        oTextCursor.setString("")
+
+        ' Reset Cursor
+        cursorReset(oTextCursor)
+
+        ' Goto NORMAL mode (in the case of VISUAL mode)
+        gotoMode("NORMAL")
+
+    ElseIf keyChar = "D" Or keyChar = "C" Then
+        If MODE = "VISUAL" Then
+            ProcessMovementKey("^", False)
+            ProcessMovementKey("$", True)
+            ProcessMovementKey("l", True)
+        Else
+            ' Deselect
+            oTextCursor = getTextCursor()
+            oTextCursor.gotoRange(oTextCursor.getStart(), False)
+            thisComponent.getCurrentController.Select(oTextCursor)
+            ProcessMovementKey("$", True)
+        End If
+
+        getTextCursor().setString("")
+
+        If keyChar = "D" Then
             gotoMode("NORMAL")
+        ElseIf keyChar = "C" Then
+            gotoMode("INSERT")
+        End IF
 
-        Case "D", "C":
-            If MODE = "VISUAL" Then
-                ProcessMovementKey("^", False)
-                ProcessMovementKey("$", True)
-                ProcessMovementKey("l", True)
-            Else
-                ' Deselect
-                oTextCursor = getTextCursor()
-                oTextCursor.gotoRange(oTextCursor.getStart(), False)
-                thisComponent.getCurrentController.Select(oTextCursor)
-                ProcessMovementKey("$", True)
-            End If
-
-            getTextCursor().setString("")
-
-            If keyChar = "D" Then
-                gotoMode("NORMAL")
-            ElseIf keyChar = "C" Then
-                gotoMode("INSERT")
-            End IF
-
-        Case "d", "c":
-            If MODE = "VISUAL" Then
-                oTextCursor = getTextCursor()
-                thisComponent.getCurrentController.Select(oTextCursor)
-                oTextCursor.setString("")
-
-                If keyChar = "c" Then gotoMode("INSERT")
-                If keyChar = "d" Then gotoMode("NORMAL")
-
-            ElseIf MODE = "NORMAL" Then
-                setSpecial(keyChar)
-                gotoMode("VISUAL")
-            End If
-
-
-        Case Else:
-            bMatched = False
-    End Select
+    Else
+        bMatched = False
+    End If
 
     ProcessDeleteKey = bMatched
 End Function
@@ -518,6 +551,7 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
             oTextCursor.gotoNextParagraph(bExpand)
         Case "{":
             oTextCursor.gotoPreviousParagraph(bExpand)
+
         Case Else:
             bSetCursor = False
             bMatched = False

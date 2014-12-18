@@ -6,8 +6,8 @@ vibreoffice currently supports:
 - Insert (`i`, `I`, `a`, `A`), Visual (`v`), Normal modes
 - Movement keys: `hjkl`, `w/W`, `b/B`, `e`, `$`, `^`, `{}`, `()`, `ctrl+d`, `ctrl+u`
 - Number modifiers: e.g. `5w`
-- Deletion: `x`, `d`, `c`
-    - Plus movement and number modifiers: e.g. `dw`, `c$`, `d2}`, `3cj`
+- Deletion: `x`, `d`, `c`, `dd`, `cc`
+    - Plus movement and number modifiers: e.g. `dw`, `c$`, `5dd`, `c3j`
 - More to come!
 
 ### License
