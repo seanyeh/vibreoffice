@@ -256,7 +256,8 @@ function KeyHandler_KeyPressed(oEvent) as boolean
 
     ' Movement modifier here?
     ElseIf ProcessMovementModifierKey(oEvent.KeyChar) Then
-        ' Pass
+        delaySpecialReset()
+
 
 
     ' If bIsSpecial but nothing matched, return to normal mode
@@ -532,30 +533,6 @@ End Function
 
 ' Returns the resulting TextCursor
 Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
-    ' REALLY ugly hack to figure out corner cases for backtracking
-    dim iBacktrack, oPos1, oPos2, oPos3
-    iBacktrack = 0
-
-    ' In forward searching, we start searching from the next character.
-    ' Thus, we need to move the cursor back 1 if the search fails.
-    ' Exception:
-    '   iBackTrack = 0 if cursor is at the end of the document
-    oPos1 = getCursor().getPosition()
-    getCursor().goRight(1, bExpand)
-    oPos2 = getCursor().getPosition()
-    If Not samePos(oPos1, oPos2) Then
-        getCursor().goRight(1, bExpand)
-        oPos3 = getCursor().getPosition()
-        ' Cursor is not at the end of the document
-        If Not samePos(oPos2, oPos3) Then
-            iBacktrack = 1
-            getCursor().goLeft(1, bExpand)
-        End If
-        getCursor().goLeft(1, bExpand)
-    End If
-    ' -------------------------
-
-
     '-----------
     ' Searching
     '-----------
@@ -563,9 +540,15 @@ Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
     bIsBackwards = (searchType = "F" Or searchType = "T")
 
     If Not bIsBackwards Then
-        ' Start searching from next character
-        oTextCursor.goRight(1, bExpand)
+        ' VISUAL mode will goRight AFTER the selection
+        If MODE <> "VISUAL" Then
+            ' Start searching from next character
+            oTextCursor.goRight(1, bExpand)
+        End If
+
         oStartRange = oTextCursor.getEnd()
+        ' Go back one
+        oTextCursor.goLeft(1, bExpand)
     Else
         oStartRange = oTextCursor.getStart()
     End If
@@ -578,7 +561,30 @@ Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
     oFoundRange = thisComponent.findNext( oStartRange, oSearchDesc )
 
     If not IsNull(oFoundRange) Then
-        oTextCursor.gotoRange(oFoundRange.getStart(), bExpand)
+        dim oText, foundPos, curPos, bSearching
+        oText = oTextCursor.getText()
+        foundPos = oFoundRange.getStart()
+
+        ' Unfortunately, we must go go to this "found" position one character at
+        ' a time because I have yet to find a way to consistently move the
+        ' Start range of the text cursor and leave the End range intact.
+        If bIsBackwards Then
+            curPos = oTextCursor.getEnd()
+        Else
+            curPos = oTextCursor.getStart()
+        End If
+        do until oText.compareRegionStarts(foundPos, curPos) = 0
+            If bIsBackwards Then
+                bSearching = oTextCursor.goLeft(1, bExpand)
+                curPos = oTextCursor.getStart()
+            Else
+                bSearching = oTextCursor.goRight(1, bExpand)
+                curPos = oTextCursor.getEnd()
+            End If
+
+            ' Prevent infinite if unable to find, but shouldn't ever happen (?)
+            If Not bSearching Then Exit Do
+        Loop
 
         If getMovementModifier() = "t" Then
             oTextCursor.goLeft(1, bExpand)
@@ -586,14 +592,13 @@ Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
             oTextCursor.goRight(1, bExpand)
         End If
 
+        ' Yet another special case:
+        ' In VISUAL mode, we want to select PAST the character
+        If Not bIsBackwards And MODE = "VISUAL" Then
+            oTextCursor.goRight(1, bExpand)
+        End If
     Else
-        ' Backtrack hack
-        dim i
-        For i = 1 to iBacktrack
-            If not bIsBackwards Then
-                oTextCursor.goLeft(1, bExpand)
-            End If
-        Next i
+        ' Pass?
     End If
 
 End Function
