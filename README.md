@@ -11,7 +11,7 @@ vibreoffice currently supports:
     - Search movement: `f`, `F`, `t`, `T`
 - Number modifiers: e.g. `5w`, `4fa`
 - Deletion: `x`, `d`, `c`, `C`, `D`, `dd`, `cc`
-    - Plus movement and number modifiers: e.g. `dw`, `c$`, `5dd`, `c3j`
+    - Plus movement and number modifiers: e.g. `dw`, `c$`, `5dd`, `c3j`, `2dfe`
 - More to come!
 
 ### License
