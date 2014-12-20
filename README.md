@@ -10,8 +10,9 @@ vibreoffice currently supports:
 - Movement keys: `hjkl`, `w`, `W`, `b`, `B`, `e`, `$`, `^`, `{}`, `()`, `C-d`, `C-u`
     - Search movement: `f`, `F`, `t`, `T`
 - Number modifiers: e.g. `5w`, `4fa`
-- Deletion: `x`, `d`, `c`, `C`, `D`, `dd`, `cc`
-    - Plus movement and number modifiers: e.g. `dw`, `c$`, `5dd`, `c3j`, `2dfe`
+- Deletion: `x`, `d`, `c`, `D`, `C`, `dd`, `cc`
+    - Plus movement and number modifiers: e.g. `5dw`, `c3j`, `2dfe`
+    - Delete a/inner block: e.g. `di(`, `da{`, `ci[`, `ci"`, `ca'`, `dit`
 - More to come!
 
 ### License

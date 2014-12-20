@@ -521,7 +521,7 @@ Function ProcessMovementModifierKey(keyChar)
 
     bMatched = True
     Select Case keyChar
-        Case "f", "t", "F", "T":
+        Case "f", "t", "F", "T", "i", "a":
             setMovementModifier(keyChar)
         Case Else:
             bMatched = False
@@ -531,12 +531,12 @@ Function ProcessMovementModifierKey(keyChar)
 End Function
 
 
-' Returns the resulting TextCursor
 Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
     '-----------
     ' Searching
     '-----------
-    dim oSearchDesc, oFoundRange, bIsBackwards, oStartRange
+    dim bMatched, oSearchDesc, oFoundRange, bIsBackwards, oStartRange
+    bMatched = True
     bIsBackwards = (searchType = "F" Or searchType = "T")
 
     If Not bIsBackwards Then
@@ -583,25 +583,78 @@ Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
             End If
 
             ' Prevent infinite if unable to find, but shouldn't ever happen (?)
-            If Not bSearching Then Exit Do
+            If Not bSearching Then
+                bMatched = False
+                Exit Do
+            End If
         Loop
 
-        If getMovementModifier() = "t" Then
+        If searchType = "t" Then
             oTextCursor.goLeft(1, bExpand)
-        ElseIf getMovementModifier() = "T" Then
+        ElseIf searchType = "T" Then
             oTextCursor.goRight(1, bExpand)
         End If
 
-        ' Yet another special case:
-        ' In VISUAL mode, we want to select PAST the character
-        If Not bIsBackwards And MODE = "VISUAL" Then
-            oTextCursor.goRight(1, bExpand)
-        End If
     Else
-        ' Pass?
+        bMatched = False
     End If
 
+    ' If matched, then we want to select PAST the character
+    ' Else, this will counteract some weirdness. hack either way
+    If Not bIsBackwards And MODE = "VISUAL" Then
+        oTextCursor.goRight(1, bExpand)
+    End If
+
+    ProcessSearchKey = bMatched
+
 End Function
+
+
+Function ProcessInnerKey(oTextCursor, movementModifier, keyChar, bExpand)
+    dim bMatched, searchType1, searchType2, search1, search2
+
+    ' Setting searchType
+    If movementModifier = "i" Then
+        searchType1 = "T" : searchType2 = "t"
+    ElseIf movementModifier = "a" Then
+        searchType1 = "F" : searchType2 = "f"
+    Else ' Shouldn't happen
+        ProcessInnerKey = False
+        Exit Function
+    End If
+
+    Select Case keyChar
+        Case "(", ")", "{", "}", "[", "]", "t", "'", """":
+            Select Case keyChar
+                Case "(", ")":
+                    search1 = "(" : search2 = ")"
+                Case "{", "}":
+                    search1 = "{" : search2 = "}"
+                Case "[", "]":
+                    search1 = "[" : search2 = "}"
+                Case "t":
+                    search1 = ">" : search2 = "<"
+                Case "'":
+                    search1 = "'" : search2 = "'"
+                Case """":
+                    ' Matches "smart" quotes, which is default in libreoffice
+                    search1 = "“" : search2 = "”"
+            End Select
+
+            dim bMatched1, bMatched2
+            bMatched1 = ProcessSearchKey(oTextCursor, searchType1, search1, False)
+            bMatched2 = ProcessSearchKey(oTextCursor, searchType2, search2, True)
+
+            bMatched = (bMatched1 And bMatched2)
+
+        Case Else:
+            bMatched = False
+
+    End Select
+
+    ProcessInnerKey = bMatched
+End Function
+
 
 ' -----------------------
 ' Main Movement Function
@@ -641,19 +694,25 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ' Movement matching
     ' ------------------
 
+    ' ---------------------------------
     ' Special Case: Modified movements
     If getMovementModifier() <> "" Then
         Select Case getMovementModifier()
-            ' ------------------
             ' f,F,t,T searching
-            ' ------------------
             Case "f", "t", "F", "T":
-                processSearchKey(oTextCursor, getMovementModifier(), keyChar, bExpand)
+                bMatched  = ProcessSearchKey(oTextCursor, getMovementModifier(), keyChar, bExpand)
+            Case "i", "a":
+                bMatched = ProcessInnerKey(oTextCursor, getMovementModifier(), keyChar, bExpand)
 
             Case Else:
                 bSetCursor = False
                 bMatched = False
         End Select
+
+        If Not bMatched Then
+            bSetCursor = False
+        End If
+    ' ---------------------------------
 
     ElseIf keyChar = "l" Then
         oTextCursor.goRight(1, bExpand)
