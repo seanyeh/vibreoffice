@@ -246,7 +246,7 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         delaySpecialReset()
 
     ' Normal Key
-    ElseIf ProcessNormalKey(oEvent) Then
+    ElseIf ProcessNormalKey(oEvent.KeyChar, oEvent.Modifiers) Then
         ' Pass
 
     ' If is modified but doesn't match a normal command, allow input
@@ -360,7 +360,7 @@ Function ProcessModeKey(oEvent)
 End Function
 
 
-Function ProcessNormalKey(oEvent)
+Function ProcessNormalKey(keyChar, modifiers)
     dim i, bMatched, bIsVisual, iIterations
     bIsVisual = (MODE = "VISUAL") ' is this hardcoding bad? what about visual block?
 
@@ -373,7 +373,7 @@ Function ProcessNormalKey(oEvent)
         dim bMatchedMovement
 
         ' Movement Key
-        bMatchedMovement = ProcessMovementKey(oEvent.KeyChar, bIsVisual, oEvent.Modifiers)
+        bMatchedMovement = ProcessMovementKey(KeyChar, bIsVisual, modifiers)
         bMatched = bMatched or bMatchedMovement
 
 
@@ -402,20 +402,20 @@ Function ProcessNormalKey(oEvent)
     ' --------------------
 
     ' There are no delete keys with modifier keys, so exit early
-    If oEvent.Modifiers > 1 Then
+    If modifiers > 1 Then
         ProcessNormalKey = False
         Exit Function
     End If
 
     ' Only 'x' or Special (dd, cc) can be done more than once
-    If oEvent.KeyChar <> "x" and getSpecial() = "" Then
+    If keyChar <> "x" and getSpecial() = "" Then
         iIterations = 1
     End If
     For i = 1 To iIterations
         dim bMatchedDelete
 
         ' Delete Key
-        bMatchedDelete = ProcessDeleteKey(oEvent.KeyChar)
+        bMatchedDelete = ProcessDeleteKey(keyChar)
 
         ' Selection Modifier Key ??
 
@@ -432,7 +432,7 @@ Function ProcessDeleteKey(keyChar)
     bIsSpecial = getSpecial() <> ""
 
 
-    If keyChar = "d" Or keyChar = "c" Then
+    If keyChar = "d" Or keyChar = "c" Or keyChar = "s" Then
         ' Special Cases: 'dd' and 'cc'
         If bIsSpecial Then
             dim bIsSpecialCase
@@ -457,19 +457,28 @@ Function ProcessDeleteKey(keyChar)
             End If
 
 
-        ' d or c in visual mode: delete selection
+        ' visual mode: delete selection
         ElseIf MODE = "VISUAL" Then
             oTextCursor = getTextCursor()
             thisComponent.getCurrentController.Select(oTextCursor)
             oTextCursor.setString("")
 
-            If keyChar = "c" Then gotoMode("INSERT")
+            If keyChar = "c" Or keyChar = "s" Then gotoMode("INSERT")
             If keyChar = "d" Then gotoMode("NORMAL")
 
-        ' Enter Special mode: 'd' or 'c'
+
+        ' Enter Special mode: 'd' or 'c', ('s' => 'cl')
         ElseIf MODE = "NORMAL" Then
-            setSpecial(keyChar)
-            gotoMode("VISUAL")
+
+            ' 's' => 'cl'
+            If keyChar = "s" Then
+                setSpecial("c")
+                gotoMode("VISUAL")
+                ProcessNormalKey("l", 0)
+            Else
+                setSpecial(keyChar)
+                gotoMode("VISUAL")
+            End If
         End If
 
 
@@ -509,6 +518,13 @@ Function ProcessDeleteKey(keyChar)
         ElseIf keyChar = "C" Then
             gotoMode("INSERT")
         End IF
+
+    ' S only valid in NORMAL mode
+    ElseIf keyChar = "S" And MODE = "NORMAL" Then
+        ProcessMovementKey("^", False)
+        ProcessMovementKey("$", True)
+        getTextCursor().setString("")
+        gotoMode("INSERT")
 
     Else
         bMatched = False
