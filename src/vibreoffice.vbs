@@ -105,6 +105,15 @@ Function samePos(oPos1, oPos2)
     samePos = oPos1.X() = oPos2.X() And oPos1.Y() = oPos2.Y()
 End FUnction
 
+Function genString(sChar, iLen)
+    dim sResult, i
+    sResult = ""
+    For i = 1 To iLen
+        sResult = sResult & sChar
+    Next i
+    genString = sResult
+End Function
+
 
 ' -----------------------------------
 ' Special Mode (for chained commands)
@@ -240,6 +249,12 @@ function KeyHandler_KeyPressed(oEvent) as boolean
     ElseIf ProcessModeKey(oEvent) Then
         ' Pass
 
+    ' Replace Key
+    ElseIf getSpecial() = "r" And Not bIsModified Then
+        dim iLen
+        iLen = Len(getCursor().getString())
+        getCursor().setString(genString(oEvent.KeyChar, iLen))
+
     ' Multiplier Key
     ElseIf ProcessNumberKey(oEvent) Then
         bIsMultiplier = True
@@ -257,7 +272,6 @@ function KeyHandler_KeyPressed(oEvent) as boolean
     ' Movement modifier here?
     ElseIf ProcessMovementModifierKey(oEvent.KeyChar) Then
         delaySpecialReset()
-
 
 
     ' If bIsSpecial but nothing matched, return to normal mode
@@ -398,10 +412,10 @@ Function ProcessNormalKey(keyChar, modifiers)
 
 
     ' --------------------
-    ' 2. Check Delete Key
+    ' 2. Check Special/Delete Key
     ' --------------------
 
-    ' There are no delete keys with modifier keys, so exit early
+    ' There are no special/delete keys with modifier keys, so exit early
     If modifiers > 1 Then
         ProcessNormalKey = False
         Exit Function
@@ -412,21 +426,19 @@ Function ProcessNormalKey(keyChar, modifiers)
         iIterations = 1
     End If
     For i = 1 To iIterations
-        dim bMatchedDelete
+        dim bMatchedSpecial
 
-        ' Delete Key
-        bMatchedDelete = ProcessDeleteKey(keyChar)
+        ' Special/Delete Key
+        bMatchedSpecial = ProcessSpecialKey(keyChar)
 
-        ' Selection Modifier Key ??
-
-        bMatched = bMatched or bMatchedDelete
+        bMatched = bMatched or bMatchedSpecial
     Next i
 
     ProcessNormalKey = bMatched
 End Function
 
 
-Function ProcessDeleteKey(keyChar)
+Function ProcessSpecialKey(keyChar)
     dim oTextCursor, bMatched, bIsSpecial
     bMatched = True
     bIsSpecial = getSpecial() <> ""
@@ -481,6 +493,9 @@ Function ProcessDeleteKey(keyChar)
             End If
         End If
 
+    ' If is 'r' for replace
+    ElseIf keyChar = "r" Then
+        setSpecial("r")
 
     ' Otherwise, ignore if bIsSpecial
     ElseIf bIsSpecial Then
@@ -530,7 +545,7 @@ Function ProcessDeleteKey(keyChar)
         bMatched = False
     End If
 
-    ProcessDeleteKey = bMatched
+    ProcessSpecialKey = bMatched
 End Function
 
 
@@ -810,7 +825,6 @@ Sub initVibreoffice
     ' Initializing
     VIBREOFFICE_STARTED = True
     VIEW_CURSOR = thisComponent.getCurrentController.getViewCursor
-
 
     resetMultiplier()
     gotoMode("NORMAL")
