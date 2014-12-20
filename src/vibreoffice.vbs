@@ -375,20 +375,22 @@ Function ProcessNormalKey(oEvent)
         ' Movement Key
         bMatchedMovement = ProcessMovementKey(oEvent.KeyChar, bIsVisual, oEvent.Modifiers)
         bMatched = bMatched or bMatchedMovement
+
+
+        ' If Special: d/c + movement
+        If bMatched And (getSpecial() = "d" Or getSpecial() = "c") Then
+            getTextCursor().setString("")
+        End If
     Next i
 
     ' Reset Movement Modifier
     setMovementModifier("")
 
+    ' Exit already if movement key was matched
     If bMatched Then
-        ' If Special: d/c + movement
-        If bMatched And (getSpecial() = "d" Or getSpecial() = "c") Then
-            getTextCursor().setString("")
-
-            If getSpecial() = "d" Then gotoMode("NORMAL")
-            If getSpecial() = "c" Then gotoMode("INSERT")
-
-        End If
+        ' If Special: d/c : change mode
+        If getSpecial() = "d" Then gotoMode("NORMAL")
+        If getSpecial() = "c" Then gotoMode("INSERT")
 
         ProcessNormalKey = True
         Exit Function
