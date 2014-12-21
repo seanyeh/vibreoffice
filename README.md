@@ -6,7 +6,7 @@ Coming soon.
 
 ### Features
 vibreoffice currently supports:
-- Insert (`i`, `I`, `a`, `A`), Visual (`v`), Normal modes
+- Insert (`i`, `I`, `a`, `A`, `o`, `O`), Visual (`v`), Normal modes
 - Movement keys: `hjkl`, `w`, `W`, `b`, `B`, `e`, `$`, `^`, `{}`, `()`, `C-d`, `C-u`
     - Search movement: `f`, `F`, `t`, `T`
 - Number modifiers: e.g. `5w`, `4fa`

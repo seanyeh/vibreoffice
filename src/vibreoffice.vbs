@@ -359,10 +359,30 @@ Function ProcessModeKey(oEvent)
     bMatched = True
     Select Case oEvent.KeyChar
         ' Insert modes
-        Case "i", "a", "I", "A":
+        Case "i", "a", "I", "A", "o", "O":
             If oEvent.KeyChar = "a" Then getCursor().goRight(1, False)
             If oEvent.KeyChar = "I" Then ProcessMovementKey("^")
             If oEvent.KeyChar = "A" Then ProcessMovementKey("$")
+
+            If oEvent.KeyChar = "o" Then
+                ProcessMovementKey("$")
+                ProcessMovementKey("l")
+                getCursor().setString(chr(13))
+                If Not getCursor().isAtStartOfLine() Then
+                    getCursor().setString(chr(13) & chr(13))
+                    ProcessMovementKey("l")
+                End If
+            End If
+
+            If oEvent.KeyChar = "O" Then
+                ProcessMovementKey("^")
+                getCursor().setString(chr(13))
+                If Not getCursor().isAtStartOfLine() Then
+                    ProcessMovementKey("h")
+                    getCursor().setString(chr(13))
+                    ProcessMovementKey("l")
+                End If
+            End If
 
             gotoMode("INSERT")
         Case "v":
