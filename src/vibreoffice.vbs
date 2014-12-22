@@ -229,11 +229,12 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         Exit Function
     End If
 
-    dim bConsumeInput, bIsMultiplier, bIsModified, bIsSpecial, oTextCursor
+    dim bConsumeInput, bIsMultiplier, bIsModified, bIsSpecial
     bConsumeInput = True ' Block all inputs by default
     bIsMultiplier = False ' reset multiplier by default
     bIsModified = oEvent.Modifiers > 1 ' If Ctrl or Alt is held down. (Shift=1)
     bIsSpecial = getSpecial() <> ""
+
 
     ' --------------------------
     ' Process global shortcuts, exit if matched (like ESC)
@@ -273,10 +274,13 @@ function KeyHandler_KeyPressed(oEvent) as boolean
     ElseIf ProcessMovementModifierKey(oEvent.KeyChar) Then
         delaySpecialReset()
 
-
     ' If bIsSpecial but nothing matched, return to normal mode
     ElseIf bIsSpecial Then
         gotoMode("NORMAL")
+
+    ' Allow non-letter keys if unmatched
+    ElseIf asc(oEvent.KeyChar) = 0 Then
+        bConsumeInput = False
     End If
     ' --------------------------
 
@@ -288,6 +292,12 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         resetMultiplier()
     End If
     setStatus(getMultiplier())
+
+    KeyHandler_KeyPressed = bConsumeInput
+End Function
+
+Function KeyHandler_KeyReleased(oEvent) As boolean
+    dim oTextCursor
 
     ' Show terminal-like cursor
     oTextCursor = getTextCursor()
@@ -301,10 +311,6 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         thisComponent.getCurrentController.Select(oTextCursor)
     End If
 
-    KeyHandler_KeyPressed = bConsumeInput
-End Function
-
-Function KeyHandler_KeyReleased(oEvent) As boolean
     KeyHandler_KeyReleased = (MODE = "NORMAL") 'cancel KeyReleased
 End Function
 
