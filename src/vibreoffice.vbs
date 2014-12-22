@@ -677,7 +677,7 @@ Function ProcessInnerKey(oTextCursor, movementModifier, keyChar, bExpand)
     End If
 
     Select Case keyChar
-        Case "(", ")", "{", "}", "[", "]", "t", "'", """":
+        Case "(", ")", "{", "}", "[", "]", "<", ">", "t", "'", """":
             Select Case keyChar
                 Case "(", ")":
                     search1 = "(" : search2 = ")"
@@ -685,6 +685,8 @@ Function ProcessInnerKey(oTextCursor, movementModifier, keyChar, bExpand)
                     search1 = "{" : search2 = "}"
                 Case "[", "]":
                     search1 = "[" : search2 = "}"
+                Case "<", ">":
+                    search1 = "<" : search2 = ">"
                 Case "t":
                     search1 = ">" : search2 = "<"
                 Case "'":
