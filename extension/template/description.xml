@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Extension files were created by Extension Compiler - version 2.1.1 -->
+<description xmlns="http://openoffice.org/extensions/description/2006"
+ xmlns:dep="http://openoffice.org/extensions/description/2006"
+ xmlns:xlink="http://www.w3.org/1999/xlink" >
+   <identifier value="vibreoffice" />
+   <version value="%VIBREOFFICE_VERSION%" />
+   <extension-description>
+      <src xlink:href="Descriptions/descr-en.txt" lang="en"/>
+   </extension-description>
+   <dependencies>
+      <OpenOffice.org-minimal-version value="3.1" dep:name="OpenOffice.org 3.1 minimum, or more recent" />
+   </dependencies>
+   <display-name>
+      <name lang="en">Vibreoffice - Vi-Mode Extension</name>
+   </display-name>
+   <publisher>
+      <name lang="en" xlink:href="http://www.seanyeh.com">Sean Yeh</name>
+   </publisher>
+   <release-notes>
+      <src lang="en" xlink:href="https://github.com/seanyeh/vibreoffice"/>
+   </release-notes>
+</description>

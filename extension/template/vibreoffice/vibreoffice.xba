@@ -1,0 +1,422 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="vibreoffice" script:language="StarBasic">
+REM  *****  BASIC  *****
+Option Explicit
+
+&apos; --------
+&apos; Globals
+&apos; --------
+global VIBREOFFICE_STARTED as boolean &apos; Defaults to False
+global VIBREOFFICE_ENABLED as boolean &apos; Defaults to False
+
+global oXKeyHandler as object
+
+&apos; Global State
+global MODE as string
+global VIEW_CURSOR as object
+global MULTIPLIER as integer
+
+global isRunning as boolean
+
+&apos; -----------
+&apos; Singletons
+&apos; -----------
+Function getCursor
+	getCursor = VIEW_CURSOR
+End Function
+
+Function getTextCursor
+    dim oTextCursor
+    oTextCursor = getCursor().getText.createTextCursorByRange(getCursor())
+    &apos; oTextCursor.gotoRange(oTextCursor.getStart(), False)
+
+    getTextCursor = oTextCursor
+End Function
+
+&apos; -----------------
+&apos; Helper Functions
+&apos; -----------------
+Sub restoreStatus &apos;restore original statusbar
+	dim oLayout
+	oLayout = thisComponent.getCurrentController.getFrame.LayoutManager
+	oLayout.destroyElement(&quot;private:resource/statusbar/statusbar&quot;)
+	oLayout.createElement(&quot;private:resource/statusbar/statusbar&quot;)
+End Sub
+
+Sub setRawStatus(rawText)
+	thisComponent.Currentcontroller.StatusIndicator.Start(rawText, 0)
+End Sub
+
+Sub setStatus(statusText)
+	setRawStatus(MODE &amp; &quot; | &quot; &amp; statusText)
+End Sub
+
+Sub setMode(modeName)
+	MODE = modeName
+	setRawStatus(modeName)
+End Sub
+
+Function gotoMode(sMode)
+    Select Case sMode
+        Case &quot;NORMAL&quot;:
+            setMode(&quot;NORMAL&quot;)
+        Case &quot;INSERT&quot;:
+            setMode(&quot;INSERT&quot;)
+        Case &quot;VISUAL&quot;:
+            setMode(&quot;VISUAL&quot;)
+
+            dim oTextCursor
+            oTextCursor = getTextCursor()
+            &apos; Deselect TextCursor
+            oTextCursor.gotoRange(oTextCursor.getStart(), False)
+            &apos; Show TextCursor selection
+		    thisComponent.getCurrentController.Select(oTextCursor)
+    End Select
+End Function
+
+
+&apos; --------------------
+&apos; Multiplier functions
+&apos; --------------------
+Sub _setMultiplier(n as integer)
+	MULTIPLIER = n
+End Sub
+
+Sub resetMultiplier()
+	_setMultiplier(0)
+End Sub
+
+Sub addToMultiplier(n as integer)
+	dim sMultiplierStr as String
+    dim iMultiplierInt as integer
+
+    &apos; Max multiplier: 10000 (stop accepting additions after 1000)
+    If MULTIPLIER &lt;= 1000 then
+        sMultiplierStr = CStr(MULTIPLIER) &amp; CStr(n)
+        _setMultiplier(CInt(sMultiplierStr))
+    End If
+End Sub
+
+&apos; Should only be used if you need the raw value
+Function getRawMultiplier()
+    getRawMultiplier = MULTIPLIER
+End Function
+
+&apos; Same as getRawMultiplier, but defaults to 1 if it is unset (0)
+Function getMultiplier()
+	If MULTIPLIER = 0 Then
+		getMultiplier = 1
+	Else
+		getMultiplier = MULTIPLIER
+	End If
+End Function
+
+
+&apos; -------------
+&apos; Key Handling
+&apos; -------------
+sub sStartXKeyHandler
+	sStopXKeyHandler()
+
+	oXKeyHandler = CreateUnoListener(&quot;KeyHandler_&quot;, &quot;com.sun.star.awt.XKeyHandler&quot;)
+	ThisComponent.CurrentController.AddKeyHandler(oXKeyHandler)
+end sub
+
+sub sStopXKeyHandler
+	ThisComponent.CurrentController.removeKeyHandler(oXKeyHandler)
+
+	&apos;oXKeyHandler = Nothing &apos;To know later this handler has stopped.
+end sub
+
+sub XKeyHandler_Disposing(oEvent)
+end sub
+
+
+&apos; --------------------
+&apos; Main Key Processing
+&apos; --------------------
+function KeyHandler_KeyPressed(oEvent) as boolean
+    &apos; Exit if plugin is not enabled
+    If IsMissing(VIBREOFFICE_ENABLED) Or Not VIBREOFFICE_ENABLED Then
+        KeyHandler_KeyPressed = False
+        Exit Function
+    End If
+
+	dim bConsumeInput, bIsMultiplier, bIsModified, oTextCursor
+	bConsumeInput = True &apos; Block all inputs by default
+	bIsMultiplier = False &apos; reset multiplier by default
+    bIsModified = oEvent.Modifiers &gt; 1 &apos; If Ctrl or Alt is held down. (Shift=1)
+
+    &apos; MsgBox(oEvent.KeyCode &amp; &quot;,&quot; &amp; oEvent.KeyChar &amp; &quot;,&quot; &amp; oEvent.KeyFunc &amp; &quot;,&quot; &amp; oEvent.Modifiers)
+
+    &apos; --------------------------
+	&apos; Process global shortcuts, exit if matched (like ESC)
+	If ProcessGlobalKey(oEvent) Then
+		&apos; Pass
+
+	ElseIf MODE = &quot;INSERT&quot; Then
+		bConsumeInput = False &apos; Allow all inputs
+
+	&apos; If Change Mode
+	ElseIf ProcessModeKey(oEvent) Then
+		REM do nothing
+
+    ElseIf ProcessNumberKey(oEvent) Then
+        bIsMultiplier = True
+
+    &apos; Normal Key
+    ElseIf Not ProcessNormalKey(oEvent) and bIsModified Then
+        &apos; If is modified but doesn&apos;t match a normal command, allow input
+        &apos;   (Useful for built-in shortcuts like Ctrl+s, Ctrl+w)
+        bConsumeInput = False
+    End If
+    &apos; --------------------------
+
+
+	&apos; Reset multiplier
+	If not bIsMultiplier Then resetMultiplier()
+	setStatus(getMultiplier())
+
+    &apos; Show terminal-like cursor
+    oTextCursor = getTextCursor()
+    If MODE = &quot;NORMAL&quot; Then
+        oTextCursor.gotoRange(oTextCursor.getStart(), False)
+        oTextCursor.goRight(1, False)
+        oTextCursor.goLeft(1, True)
+		thisComponent.getCurrentController.Select(oTextCursor)
+
+    ElseIf MODE = &quot;INSERT&quot; Then
+        oTextCursor.gotoRange(oTextCursor.getStart(), False)
+		thisComponent.getCurrentController.Select(oTextCursor)
+    End If
+
+    KeyHandler_KeyPressed = bConsumeInput
+End Function
+
+Function KeyHandler_KeyReleased(oEvent) As boolean
+    KeyHandler_KeyReleased = (MODE = &quot;NORMAL&quot;) &apos;cancel KeyReleased
+End Function
+
+
+&apos; ----------------
+&apos; Processing Keys
+&apos; ----------------
+Function ProcessGlobalKey(oEvent)
+	dim bMatched
+	bMatched = True
+	Select Case oEvent.KeyCode
+		&apos; PRESSED ESCAPE
+		Case 1281:
+            &apos; Move cursor back if was in INSERT (but stay on same line)
+            If MODE &lt;&gt; &quot;NORMAL&quot; And Not getCursor().isAtStartOfLine() Then
+                getCursor().goLeft(1, False)
+            End If
+
+			gotoMode(&quot;NORMAL&quot;)
+		Case Else:
+			bMatched = False
+	End Select
+	ProcessGlobalKey = bMatched
+End Function
+
+
+Function ProcessNumberKey(oEvent)
+	dim c
+	c = CStr(oEvent.KeyChar)
+
+	If c &gt;= &quot;0&quot; and c &lt;= &quot;9&quot; Then
+		addToMultiplier(CInt(c))
+		ProcessNumberKey = True
+	Else
+		ProcessNumberKey = False
+	End If
+End Function
+
+
+Function ProcessModeKey(oEvent)
+	dim bMatched
+	bMatched = True
+	Select Case oEvent.KeyChar
+        &apos; Insert modes
+		Case &quot;i&quot;, &quot;a&quot;, &quot;I&quot;, &quot;A&quot;:
+            If oEvent.KeyChar = &quot;a&quot; Then getCursor().goRight(1, False)
+            If oEvent.KeyChar = &quot;I&quot; Then ProcessMovementKey(&quot;^&quot;)
+            If oEvent.KeyChar = &quot;A&quot; Then ProcessMovementKey(&quot;$&quot;)
+
+			gotoMode(&quot;INSERT&quot;)
+        Case &quot;v&quot;:
+            gotoMode(&quot;VISUAL&quot;)
+		Case Else:
+			bMatched = False
+	End Select
+	ProcessModeKey = bMatched
+End Function
+
+
+Function ProcessNormalKey(oEvent)
+    dim i, bMatched, bIsVisual
+    bMatched = False
+    bIsVisual = (MODE = &quot;VISUAL&quot;) &apos; is this hardcoding bad? what about visual block?
+    For i = 1 To getMultiplier()
+        dim bMatchedMovement, bMatchedDelete
+
+        bMatchedMovement = ProcessMovementKey(oEvent.KeyChar, bIsVisual, oEvent.Modifiers)
+        bMatchedDelete = ProcessDeleteKey(oEvent)
+        bMatched = bMatched or bMatchedMovement or bMatchedDelete
+
+        &apos; Special case: Break from For loop if in visual mode and has deleted,
+        &apos; since multiplier should not be applied
+        If bIsVisual and bMatchedDelete Then Exit For
+    Next i
+
+    ProcessNormalKey = bMatched
+End Function
+
+Function ProcessDeleteKey(oEvent)
+    dim oTextCursor, bMatched
+    oTextCursor = getTextCursor()
+    bMatched = True
+    Select Case oEvent.KeyChar
+        &apos; Case &quot;d&quot;:
+            &apos; setSpecial(&quot;d&quot;)
+
+		Case &quot;x&quot;:
+			&apos; oTextCursor.goRight(1, True)
+			thisComponent.getCurrentController.Select(oTextCursor)
+            &apos;
+			oTextCursor.setString(&quot;&quot;)
+        Case Else:
+            bMatched = False
+
+    End Select
+
+    ProcessDeleteKey = bMatched
+End Function
+
+
+&apos; -----------------------
+&apos; Main Movement Function
+&apos; -----------------------
+&apos;   Default: bExpand = False, keyModifiers = 0
+Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
+	dim oTextCursor, bSetCursor, bMatched
+    oTextCursor = getTextCursor()
+    bMatched = True
+    If IsMissing(bExpand) Then bExpand = False
+    If IsMissing(keyModifiers) Then keyModifiers = 0
+
+
+    &apos; Check for modified keys (Ctrl, Alt, not Shift)
+    If keyModifiers &gt; 1 Then
+        dim isControl
+        isControl = (keyModifiers = 2) or (keyModifiers = 8)
+
+        &apos; Ctrl+d and Ctrl+u
+        If isControl and keyChar = &quot;d&quot; Then
+            getCursor().ScreenDown(bExpand)
+        ElseIf isControl and keyChar = &quot;u&quot; Then
+            getCursor().ScreenUp(bExpand)
+        Else
+            bMatched = False
+        End If
+
+        ProcessMovementKey = bMatched
+        Exit Function
+    End If
+
+    &apos; Set global cursor to oTextCursor&apos;s new position if moved
+    bSetCursor = True
+
+	Select Case keyChar
+		Case &quot;l&quot;:
+			oTextCursor.goRight(1, bExpand)
+		Case &quot;h&quot;:
+			oTextCursor.goLeft(1, bExpand)
+
+		&apos; BEGIN HACK
+		&apos; oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn&apos;t (I dont know why).
+		&apos; So this is a weird hack
+		Case &quot;k&quot;:
+			&apos;oTextCursor.goUp(1, False)
+			getCursor().goUp(1, bExpand)
+            bSetCursor = False
+		Case &quot;j&quot;:
+			&apos;oTextCursor.goDown(1, False)
+			getCursor().goDown(1, bExpand)
+            bSetCursor = False
+		&apos; END HACK
+
+		Case &quot;^&quot;:
+            getCursor().gotoStartOfLine(bExpand)
+            bSetCursor = False
+		Case &quot;$&quot;:
+            dim oldPos, newPos
+            oldPos = getCursor().getPosition()
+            getCursor().gotoEndOfLine(bExpand)
+            newPos = getCursor().getPosition()
+
+            &apos; If the result is at the start of the line, then it must have
+            &apos; jumped down a line; goLeft to return to the previous line.
+            &apos;   Except for: Empty lines (check for oldPos = newPos)
+            If getCursor().isAtStartOfLine() And oldPos.Y() &lt;&gt; newPos.Y() Then
+                getCursor().goLeft(1, bExpand)
+            End If
+
+            &apos; maybe eventually cursorGoto... should return True/False for bsetCursor
+            bSetCursor = False
+
+		Case &quot;w&quot;, &quot;W&quot;:
+			oTextCursor.gotoNextWord(bExpand)
+		Case &quot;b&quot;, &quot;B&quot;:
+			oTextCursor.gotoPreviousWord(bExpand)
+		Case &quot;e&quot;:
+			oTextCursor.gotoEndOfWord(bExpand)
+
+		Case &quot;)&quot;:
+			oTextCursor.gotoNextSentence(bExpand)
+		Case &quot;(&quot;:
+			oTextCursor.gotoPreviousSentence(bExpand)
+		Case &quot;}&quot;:
+			oTextCursor.gotoNextParagraph(bExpand)
+		Case &quot;{&quot;:
+			oTextCursor.gotoPreviousParagraph(bExpand)
+		Case Else:
+            bSetCursor = False
+            bMatched = False
+	End Select
+
+    &apos; If oTextCursor was moved, set global cursor to its position
+    If bSetCursor Then
+        getCursor().gotoRange(oTextCursor.getStart(), False)
+    End If
+
+    &apos; If oTextCursor was moved and is in VISUAL mode, update selection
+    if bSetCursor and bExpand then
+        thisComponent.getCurrentController.Select(oTextCursor)
+    end if
+
+    ProcessMovementKey = bMatched
+End Function
+
+
+Sub initVibreoffice
+    &apos; Initializing
+	VIEW_CURSOR = thisComponent.getCurrentController.getViewCursor
+	resetMultiplier()
+
+	gotoMode(&quot;NORMAL&quot;)
+
+	sStartXKeyHandler()
+End Sub
+
+Sub Main
+    If Not VIBREOFFICE_STARTED Then
+        initVibreoffice()
+        VIBREOFFICE_STARTED = True
+    End If
+
+    &apos; Toggle enable/disable
+    VIBREOFFICE_ENABLED = Not VIBREOFFICE_ENABLED
+End Sub
+</script:module>

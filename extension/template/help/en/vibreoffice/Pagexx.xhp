@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<helpdocument version="1.0">
+   <meta>
+      <topic id="vibreoffice.Pagexx">
+         <title id="tit" xml-lang="en">Vibreoffice - Vi-Mode Extension : Write the title here</title>
+         <filename>/vibreoffice/Pagexx.xhp</filename>
+      </topic>
+   </meta>
+   <body>
+      <paragraph role="heading" level="1" xml-lang="en" id="N0001">
+         Write your own help pages from here
+      </paragraph>
+      <paragraph role="paragraph" xml-lang="en" id="N0002">
+         Language en is the default value, you should have an english version of your help if your extension is internationally available.
+      </paragraph>
+      <paragraph role="paragraph" xml-lang="en" id="N0003">
+         
+      </paragraph>
+      <paragraph role="paragraph" xml-lang="en" id="N0004">
+         
+      </paragraph>
+      <paragraph role="paragraph" xml-lang="en" id="N0005">
+         
+      </paragraph>
+      <paragraph role="paragraph" xml-lang="en" id="N0006">
+         
+      </paragraph>
+      <paragraph role="paragraph" xml-lang="en" id="N0007">
+         
+      </paragraph>
+      <paragraph role="paragraph" xml-lang="en" id="N0008">
+         
+      </paragraph>
+   </body>
+</helpdocument>
