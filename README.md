@@ -41,16 +41,14 @@ If you are familiar with vi/vim, then vibreoffice should give very few
 surprises. However, there are some differences, primarily due to word
 processor-text editor differences or limitations of the LibreOffice API and/or
 my patience.
+- Currently, I am using LibreOffice's built-in word/sentence movement which
+  differs from vi's. It's sort of broken now but I plan to fix it eventually.
 - The concept of lines in a text editor is not quite analogous to that of a
   word processor. I made my best effort to incorporate the line analogy while keeping
   the spirit of word processing.
     - Unlike vi/vim, movement keys will wrap to the next line
     - Due to line wrapping, you may find your cursor move up/down a line for
       commands that would otherwise leave you in the same position (such as `dd`)
-- Currently, I am using LibreOffice's built-in word detection for word
-  movements (`w`, `W`, etc.) which differs slightly from vi's. For many
-  situations I find this satisfactory, but there are some funky cases involving
-  certain symbols. I may or may not change this in the future.
 - vibreoffice does not have contextual awareness. What I mean by that is that
   it does not keep track of which parentheses/braces match. Hence, you may have
   unexpected behavior (using commands such as `di(`) if your document has

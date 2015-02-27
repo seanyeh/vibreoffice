@@ -319,21 +319,22 @@ End Function
 ' Processing Keys
 ' ----------------
 Function ProcessGlobalKey(oEvent)
-    dim bMatched
+    dim bMatched, bIsControl
     bMatched = True
-    Select Case oEvent.KeyCode
-        ' PRESSED ESCAPE
-        Case 1281:
-            ' Move cursor back if was in INSERT (but stay on same line)
-            If MODE <> "NORMAL" And Not getCursor().isAtStartOfLine() Then
-                getCursor().goLeft(1, False)
-            End If
+    bIsControl = (oEvent.Modifiers = 2) or (oEvent.Modifiers = 8)
 
-            resetSpecial(True)
-            gotoMode("NORMAL")
-        Case Else:
-            bMatched = False
-    End Select
+    ' PRESSED ESCAPE (or ctrl+[)
+    if oEvent.KeyCode = 1281 Or (oEvent.KeyCode = 1315 And bIsControl) Then
+        ' Move cursor back if was in INSERT (but stay on same line)
+        If MODE <> "NORMAL" And Not getCursor().isAtStartOfLine() Then
+            getCursor().goLeft(1, False)
+        End If
+
+        resetSpecial(True)
+        gotoMode("NORMAL")
+    Else
+        bMatched = False
+    End If
     ProcessGlobalKey = bMatched
 End Function
 
