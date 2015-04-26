@@ -367,7 +367,23 @@ Function ProcessModeKey(oEvent)
     Select Case oEvent.KeyChar
         ' Insert modes
         Case "i", "a", "I", "A", "o", "O":
-            If oEvent.KeyChar = "a" Then getCursor().goRight(1, False)
+            If oEvent.KeyChar = "a" Then
+                dim oldPos, newPos, cursor
+                cursor = getCursor()
+
+                ' oldPos and newPos are used to make sure we haven't moved down
+                oldPos = cursor.getPosition()
+                cursor.goRight(1, False)
+                newPos = cursor.getPosition()
+
+                ' If the result is at the start of the line, then it must have
+                ' jumped down a line; goLeft to return to the previous line.
+                '   Except for: Empty lines (check for oldPos = newPos)
+                If cursor.isAtStartOfLine() And oldPos.Y() <> newPos.Y() Then
+                    cursor.goLeft(1, true)
+                End If
+
+            End If
             If oEvent.KeyChar = "I" Then ProcessMovementKey("^")
             If oEvent.KeyChar = "A" Then ProcessMovementKey("$")
 
