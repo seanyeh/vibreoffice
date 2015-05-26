@@ -34,6 +34,7 @@ vibreoffice currently supports:
 - Deletion: `x`, `d`, `c`, `s`, `D`, `C`, `S`, `dd`, `cc`
     - Plus movement and number modifiers: e.g. `5dw`, `c3j`, `2dfe`
     - Delete a/inner block: e.g. `di(`, `da{`, `ci[`, `ci"`, `ca'`, `dit`
+- Undo/redo: `u`, `C-r`
 
 ### Known differences/issues
 

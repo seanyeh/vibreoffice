@@ -402,7 +402,9 @@ End Function
 
 
 Function ProcessNormalKey(keyChar, modifiers)
-    dim i, bMatched, bIsVisual, iIterations
+    dim i, bMatched, bIsVisual, iIterations, bIsControl
+    bIsControl = (modifiers = 2) or (modifiers = 8)
+
     bIsVisual = (MODE = "VISUAL") ' is this hardcoding bad? what about visual block?
 
     ' ----------------------
@@ -439,7 +441,20 @@ Function ProcessNormalKey(keyChar, modifiers)
 
 
     ' --------------------
-    ' 2. Check Special/Delete Key
+    ' 2. Undo/Redo
+    ' --------------------
+    If keyChar = "u" Or (bIsControl And keyChar = "r") Then
+        For i = 1 To iIterations
+            Undo(keyChar = "u")
+        Next i
+
+        ProcessNormalKey = True
+        Exit Function
+    End If
+
+
+    ' --------------------
+    ' 3. Check Special/Delete Key
     ' --------------------
 
     ' There are no special/delete keys with modifier keys, so exit early
@@ -461,8 +476,26 @@ Function ProcessNormalKey(keyChar, modifiers)
         bMatched = bMatched or bMatchedSpecial
     Next i
 
+
     ProcessNormalKey = bMatched
 End Function
+
+
+' Function for both undo and redo
+Sub Undo(bUndo)
+    On Error Goto ErrorHandler
+
+    If bUndo Then
+        thisComponent.getUndoManager().undo()
+    Else
+        thisComponent.getUndoManager().redo()
+    End If
+    Exit Sub
+
+    ' Ignore errors from no more undos/redos in stack
+ErrorHandler:
+    Resume Next
+End Sub
 
 
 Function ProcessSpecialKey(keyChar)
