@@ -274,6 +274,10 @@ function KeyHandler_KeyPressed(oEvent) as boolean
     ElseIf ProcessMovementModifierKey(oEvent.KeyChar) Then
         delaySpecialReset()
 
+    ' If standard movement key (in VISUAL mode) like arrow keys, home, end
+    ElseIf MODE = "VISUAL" And ProcessStandardMovementKey(oEvent) Then
+        ' Pass
+
     ' If bIsSpecial but nothing matched, return to normal mode
     ElseIf bIsSpecial Then
         gotoMode("NORMAL")
@@ -336,6 +340,35 @@ Function ProcessGlobalKey(oEvent)
         bMatched = False
     End If
     ProcessGlobalKey = bMatched
+End Function
+
+
+Function ProcessStandardMovementKey(oEvent)
+    dim c, bMatched
+    c = oEvent.KeyCode
+
+    bMatched = True
+
+    If MODE <> "VISUAL" Then
+        bMatched = False
+        'Pass
+    ElseIf c = 1024 Then
+        ProcessMovementKey("j", True)
+    ElseIf c = 1025 Then
+        ProcessMovementKey("k", True)
+    ElseIf c = 1026 Then
+        ProcessMovementKey("h", True)
+    ElseIf c = 1027 Then
+        ProcessMovementKey("l", True)
+    ElseIf c = 1028 Then
+        ProcessMovementKey("^", True)
+    ElseIf c = 1029 Then
+        ProcessMovementKey("$", True)
+    Else
+        bMatched = False
+    End If
+
+    ProcessStandardMovementKey = bMatched
 End Function
 
 
