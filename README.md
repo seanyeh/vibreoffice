@@ -8,7 +8,7 @@ both vi/vim neophytes and experts alike.
 ### Installation/Usage
 
 The easiest way to install is to download the
-[latest extension file](https://raw.github.com/seanyeh/vibreoffice/master/dist/vibreoffice-0.1.2.oxt)
+[latest extension file](https://raw.github.com/seanyeh/vibreoffice/master/dist/vibreoffice-0.1.3.oxt)
 and open it with LibreOffice/OpenOffice.
 
 To enable/disable vibreoffice, simply select Tools -> Add-Ons -> vibreoffice.
