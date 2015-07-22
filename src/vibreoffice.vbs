@@ -127,6 +127,22 @@ Sub yankSelection(bDelete)
 End Sub
 
 
+Sub pasteSelection()
+    dim oTextCursor, dispatcher As Object
+
+    ' Deselect if in NORMAL mode to avoid overwriting the character underneath
+    ' the cursor
+    If MODE = "NORMAL" Then
+        oTextCursor = getTextCursor()
+        oTextCursor.gotoRange(oTextCursor.getStart(), False)
+        thisComponent.getCurrentController.Select(oTextCursor)
+    End If
+
+    dispatcher = createUnoService("com.sun.star.frame.DispatchHelper")
+    dispatcher.executeDispatch(ThisComponent.CurrentController.Frame, ".uno:Paste", "", 0, Array())
+End Sub
+
+
 ' -----------------------------------
 ' Special Mode (for chained commands)
 ' -----------------------------------
@@ -499,7 +515,28 @@ Function ProcessNormalKey(keyChar, modifiers)
 
 
     ' --------------------
-    ' 3. Check Special/Delete Key
+    ' 3. Paste
+    '   Note: in vim, paste will result in cursor being over the last character
+    '   of the pasted content. Here, the cursor will be the next character
+    '   after that. Fix?
+    ' --------------------
+    If keyChar = "p" or keyChar = "P" Then
+        ' Move cursor right if "p" to paste after cursor
+        If keyChar = "p" Then
+            ProcessMovementKey("l", False)
+        End If
+
+        For i = 1 To iIterations
+            pasteSelection()
+        Next i
+
+        ProcessNormalKey = True
+        Exit Function
+    End If
+
+
+    ' --------------------
+    ' 4. Check Special/Delete Key
     ' --------------------
 
     ' There are no special/delete keys with modifier keys, so exit early
@@ -611,8 +648,6 @@ Function ProcessSpecialKey(keyChar)
     ElseIf keyChar = "x" Then
         oTextCursor = getTextCursor()
         thisComponent.getCurrentController.Select(oTextCursor)
-
-        ' Yank and delete
         yankSelection(True)
 
         ' Reset Cursor
