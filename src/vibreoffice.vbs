@@ -103,7 +103,7 @@ End Sub
 
 Function samePos(oPos1, oPos2)
     samePos = oPos1.X() = oPos2.X() And oPos1.Y() = oPos2.Y()
-End FUnction
+End Function
 
 Function genString(sChar, iLen)
     dim sResult, i
@@ -113,6 +113,18 @@ Function genString(sChar, iLen)
     Next i
     genString = sResult
 End Function
+
+' Yanks selection to system clipboard.
+' If bDelete is true, will delete selection.
+Sub yankSelection(bDelete)
+    dim dispatcher As Object
+    dispatcher = createUnoService("com.sun.star.frame.DispatchHelper")
+    dispatcher.executeDispatch(ThisComponent.CurrentController.Frame, ".uno:Copy", "", 0, Array())
+
+    If bDelete Then
+        getTextCursor().setString("")
+    End If
+End Sub
 
 
 ' -----------------------------------
@@ -455,7 +467,7 @@ Function ProcessNormalKey(keyChar, modifiers)
 
         ' If Special: d/c + movement
         If bMatched And (getSpecial() = "d" Or getSpecial() = "c") Then
-            getTextCursor().setString("")
+            yankSelection(True)
         End If
     Next i
 
@@ -549,7 +561,7 @@ Function ProcessSpecialKey(keyChar)
 
                 oTextCursor = getTextCursor()
                 thisComponent.getCurrentController.Select(oTextCursor)
-                oTextCursor.setString("")
+                yankSelection(True)
             Else
                 bMatched = False
             End If
@@ -566,7 +578,8 @@ Function ProcessSpecialKey(keyChar)
         ElseIf MODE = "VISUAL" Then
             oTextCursor = getTextCursor()
             thisComponent.getCurrentController.Select(oTextCursor)
-            oTextCursor.setString("")
+
+            yankSelection(True)
 
             If keyChar = "c" Or keyChar = "s" Then gotoMode("INSERT")
             If keyChar = "d" Then gotoMode("NORMAL")
@@ -598,7 +611,9 @@ Function ProcessSpecialKey(keyChar)
     ElseIf keyChar = "x" Then
         oTextCursor = getTextCursor()
         thisComponent.getCurrentController.Select(oTextCursor)
-        oTextCursor.setString("")
+
+        ' Yank and delete
+        yankSelection(True)
 
         ' Reset Cursor
         cursorReset(oTextCursor)
@@ -619,7 +634,7 @@ Function ProcessSpecialKey(keyChar)
             ProcessMovementKey("$", True)
         End If
 
-        getTextCursor().setString("")
+        yankSelection(True)
 
         If keyChar = "D" Then
             gotoMode("NORMAL")
@@ -631,7 +646,7 @@ Function ProcessSpecialKey(keyChar)
     ElseIf keyChar = "S" And MODE = "NORMAL" Then
         ProcessMovementKey("^", False)
         ProcessMovementKey("$", True)
-        getTextCursor().setString("")
+        yankSelection(True)
         gotoMode("INSERT")
 
     Else
