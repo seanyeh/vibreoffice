@@ -46,10 +46,15 @@ End Function
 
 Function getTextCursor
     dim oTextCursor
+    On Error Goto ErrorHandler
     oTextCursor = getCursor().getText.createTextCursorByRange(getCursor())
-    ' oTextCursor.gotoRange(oTextCursor.getStart(), False)
 
     getTextCursor = oTextCursor
+    Exit Function
+
+ErrorHandler:
+    ' Text Cursor does not work in some instances, such as in Annotations
+    getTextCursor = Nothing
 End Function
 
 ' -----------------
@@ -251,8 +256,17 @@ End Sub
 ' Main Key Processing
 ' --------------------
 function KeyHandler_KeyPressed(oEvent) as boolean
+    dim oTextCursor
+
     ' Exit if plugin is not enabled
     If IsMissing(VIBREOFFICE_ENABLED) Or Not VIBREOFFICE_ENABLED Then
+        KeyHandler_KeyPressed = False
+        Exit Function
+    End If
+
+    ' Exit if TextCursor does not work (as in Annotations)
+    oTextCursor = getTextCursor()
+    If oTextCursor Is Nothing Then
         KeyHandler_KeyPressed = False
         Exit Function
     End If
@@ -333,7 +347,9 @@ Function KeyHandler_KeyReleased(oEvent) As boolean
 
     ' Show terminal-like cursor
     oTextCursor = getTextCursor()
-    If oEvent.Modifiers = 2 Or oEvent.Modifiers = 8 And oEvent.KeyChar = "c" Then
+    If oTextCursor Is Nothing Then
+        ' Do nothing
+    ElseIf oEvent.Modifiers = 2 Or oEvent.Modifiers = 8 And oEvent.KeyChar = "c" Then
         ' Allow Ctrl+c for Copy, so don't change cursor
         ' Pass
     ElseIf MODE = "NORMAL" Then
@@ -976,7 +992,12 @@ Sub initVibreoffice
 
     ' Show terminal cursor
     oTextCursor = getTextCursor()
-    cursorReset(oTextCursor)
+
+    If oTextCursor Is Nothing Then
+        ' Do nothing
+    Else
+        cursorReset(oTextCursor)
+    End If
 
     sStartXKeyHandler()
 End Sub
