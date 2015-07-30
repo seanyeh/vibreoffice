@@ -271,10 +271,11 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         Exit Function
     End If
 
-    dim bConsumeInput, bIsMultiplier, bIsModified, bIsSpecial
+    dim bConsumeInput, bIsMultiplier, bIsModified, bIsControl, bIsSpecial
     bConsumeInput = True ' Block all inputs by default
     bIsMultiplier = False ' reset multiplier by default
     bIsModified = oEvent.Modifiers > 1 ' If Ctrl or Alt is held down. (Shift=1)
+    bIsControl = (oEvent.Modifiers = 2) or (oEvent.Modifiers = 8)
     bIsSpecial = getSpecial() <> ""
 
 
@@ -308,8 +309,12 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         ' Pass
 
     ' If is modified but doesn't match a normal command, allow input
-    '   (Useful for built-in shortcuts like Ctrl+s, Ctrl+w)
+    '   (Useful for built-in shortcuts like Ctrl+a, Ctrl+s, Ctrl+w)
     ElseIf bIsModified Then
+        ' Ctrl+a (select all) sets mode to VISUAL
+        If bIsControl And oEvent.KeyChar = "a" Then
+            gotoMode("VISUAL")
+        End If
         bConsumeInput = False
 
     ' Movement modifier here?
