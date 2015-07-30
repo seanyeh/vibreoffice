@@ -498,8 +498,8 @@ Function ProcessNormalKey(keyChar, modifiers)
 
 
         ' If Special: d/c + movement
-        If bMatched And (getSpecial() = "d" Or getSpecial() = "c") Then
-            yankSelection(True)
+        If bMatched And (getSpecial() = "d" Or getSpecial() = "c" Or getSpecial() = "y") Then
+            yankSelection((getSpecial() <> "y"))
         End If
     Next i
 
@@ -509,7 +509,7 @@ Function ProcessNormalKey(keyChar, modifiers)
     ' Exit already if movement key was matched
     If bMatched Then
         ' If Special: d/c : change mode
-        If getSpecial() = "d" Then gotoMode("NORMAL")
+        If getSpecial() = "d" Or getSpecial() = "y" Then gotoMode("NORMAL")
         If getSpecial() = "c" Then gotoMode("INSERT")
 
         ProcessNormalKey = True
@@ -597,12 +597,14 @@ End Sub
 
 
 Function ProcessSpecialKey(keyChar)
-    dim oTextCursor, bMatched, bIsSpecial
+    dim oTextCursor, bMatched, bIsSpecial, bIsDelete
     bMatched = True
     bIsSpecial = getSpecial() <> ""
 
 
-    If keyChar = "d" Or keyChar = "c" Or keyChar = "s" Then
+    If keyChar = "d" Or keyChar = "c" Or keyChar = "s" Or keyChar = "y" Then
+        bIsDelete = (keyChar <> "y")
+
         ' Special Cases: 'dd' and 'cc'
         If bIsSpecial Then
             dim bIsSpecialCase
@@ -614,7 +616,7 @@ Function ProcessSpecialKey(keyChar)
 
                 oTextCursor = getTextCursor()
                 thisComponent.getCurrentController.Select(oTextCursor)
-                yankSelection(True)
+                yankSelection(bIsDelete)
             Else
                 bMatched = False
             End If
@@ -632,13 +634,13 @@ Function ProcessSpecialKey(keyChar)
             oTextCursor = getTextCursor()
             thisComponent.getCurrentController.Select(oTextCursor)
 
-            yankSelection(True)
+            yankSelection(bIsDelete)
 
             If keyChar = "c" Or keyChar = "s" Then gotoMode("INSERT")
-            If keyChar = "d" Then gotoMode("NORMAL")
+            If keyChar = "d" Or keyChar = "y" Then gotoMode("NORMAL")
 
 
-        ' Enter Special mode: 'd' or 'c', ('s' => 'cl')
+        ' Enter Special mode: 'd', 'c', or 'y' ('s' => 'cl')
         ElseIf MODE = "NORMAL" Then
 
             ' 's' => 'cl'
