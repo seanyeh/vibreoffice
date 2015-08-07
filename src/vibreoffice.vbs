@@ -977,6 +977,20 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ' If oTextCursor was moved, set global cursor to its position
     If bSetCursor Then
         getCursor().gotoRange(oTextCursor.getStart(), False)
+
+        ' ---- REALLY BAD HACK
+        ' I can't seem to get the View Cursor (getCursor()) to update its
+        ' position without calling its own movement functions.
+        ' Theoretically, the above call to gotoRange should work, but I don't
+        ' know why it doesn't. Visually it works, but its X position is reset
+        ' when you move lines. Bug??
+        dim oTempPos
+        oTempPos = getCursor().getPosition()
+        ' Move left 1 and then right 1 to stay in same position
+        getCursor().goLeft(1, False)
+        If Not samePos(oTempPos, getCursor().getPosition()) Then
+            getCursor().goRight(1, False)
+        End If
     End If
 
     ' If oTextCursor was moved and is in VISUAL mode, update selection
