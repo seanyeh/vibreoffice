@@ -376,8 +376,9 @@ Function ProcessGlobalKey(oEvent)
     bMatched = True
     bIsControl = (oEvent.Modifiers = 2) or (oEvent.Modifiers = 8)
 
-    ' PRESSED ESCAPE (or ctrl+[)
-    if oEvent.KeyCode = 1281 Or (oEvent.KeyCode = 1315 And bIsControl) Then
+    ' keycode can be viewed here: http://api.libreoffice.org/docs/idl/ref/namespacecom_1_1sun_1_1star_1_1awt_1_1Key.html
+    ' PRESSED ESCAPE (or ctrl+[) (or ctrl+C)
+    if oEvent.KeyCode = 1281 Or (oEvent.KeyCode = 1315 And bIsControl) Or (oEvent.KeyCode = 514 And bIsControl) Then
         ' Move cursor back if was in INSERT (but stay on same line)
         If MODE <> "NORMAL" And Not getCursor().isAtStartOfLine() Then
             getCursor().goLeft(1, False)
