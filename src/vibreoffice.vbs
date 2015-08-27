@@ -667,6 +667,21 @@ Function ProcessSpecialKey(keyChar)
     ElseIf keyChar = "r" Then
         setSpecial("r")
 
+	' gg to go to beginning of text
+	ElseIf keyChar = "g" Then
+		If bIsSpecial Then
+			if getSpecial() = "g" Then
+				dim bExpand
+				bExpand = false
+				oTextCursor = getTextCursor()
+				oTextCursor.gotoStart(bExpand)
+		        getCursor().gotoRange(oTextCursor.getStart(), False)
+			End If
+		ElseIf MODE = "NORMAL" Or MODE = "VISUAL" Then
+			setSpecial("g")
+		End If
+			
+		
     ' Otherwise, ignore if bIsSpecial
     ElseIf bIsSpecial Then
         bMatched = False
