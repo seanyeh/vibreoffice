@@ -299,14 +299,15 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         iLen = Len(getCursor().getString())
         getCursor().setString(genString(oEvent.KeyChar, iLen))
 
+	' Normal Key (must be before MultiplierKey, so that 0 is seen as startOfLine)
+    ElseIf ProcessNormalKey(oEvent.KeyChar, oEvent.Modifiers) Then
+
     ' Multiplier Key
     ElseIf ProcessNumberKey(oEvent) Then
         bIsMultiplier = True
         delaySpecialReset()
 
-    ' Normal Key
-    ElseIf ProcessNormalKey(oEvent.KeyChar, oEvent.Modifiers) Then
-        ' Pass
+            ' Pass
 
     ' If is modified but doesn't match a normal command, allow input
     '   (Useful for built-in shortcuts like Ctrl+a, Ctrl+s, Ctrl+w)
@@ -412,6 +413,8 @@ Function ProcessStandardMovementKey(oEvent)
         ProcessMovementKey("l", True)
     ElseIf c = 1028 Then
         ProcessMovementKey("^", True)
+	ElseIf c = "0" Then
+		ProcessMovementKey("0", True) ' key for zero (0)
     ElseIf c = 1029 Then
         ProcessMovementKey("$", True)
     Else
@@ -935,7 +938,7 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         bSetCursor = False
     ' ----------
 
-    ElseIf keyChar = "^" Then
+    ElseIf keyChar = "0" Then
         getCursor().gotoStartOfLine(bExpand)
         bSetCursor = False
     ElseIf keyChar = "$" Then
@@ -954,6 +957,8 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         ' maybe eventually cursorGoto... should return True/False for bsetCursor
         bSetCursor = False
 
+	ElseIf keyChar = "G" Then
+		oTextCursor.gotoEnd(bExpand)
     ElseIf keyChar = "w" or keyChar = "W" Then
         oTextCursor.gotoNextWord(bExpand)
     ElseIf keyChar = "b" or keyChar = "B" Then
