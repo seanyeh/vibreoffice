@@ -953,7 +953,7 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         bSetCursor = False
     ' ----------
 
-    ElseIf keyChar = "0" Then
+    ElseIf keyChar = "0" or keyChar = "^" Then
         getCursor().gotoStartOfLine(bExpand)
         bSetCursor = False
     ElseIf keyChar = "$" Then
