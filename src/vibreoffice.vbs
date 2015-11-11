@@ -972,13 +972,16 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         ' maybe eventually cursorGoto... should return True/False for bsetCursor
         bSetCursor = False
 
-	ElseIf keyChar = "G" Then
-		oTextCursor.gotoEnd(bExpand)
+    ElseIf keyChar = "G" Then
+        oTextCursor.gotoEnd(bExpand)
     ElseIf keyChar = "w" or keyChar = "W" Then
         oTextCursor.gotoNextWord(bExpand)
     ElseIf keyChar = "b" or keyChar = "B" Then
         oTextCursor.gotoPreviousWord(bExpand)
     ElseIf keyChar = "e" Then
+        If oTextCursor.isEndOfWord(bExpand) Then
+            oTextCursor.gotoNextWord(bExpand)
+        End If
         oTextCursor.gotoEndOfWord(bExpand)
 
     ElseIf keyChar = ")" Then
