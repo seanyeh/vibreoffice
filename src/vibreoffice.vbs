@@ -977,14 +977,36 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ElseIf keyChar = "w" or keyChar = "W" Then
         oTextCursor.gotoNextWord(bExpand)
     ElseIf keyChar = "b" or keyChar = "B" Then
+        dim olderPos, newerPos
+        olderPos = getCursor().getPosition()
         oTextCursor.gotoPreviousWord(bExpand)
+	' Set global cursor to oTextCursor's position
+        getCursor().gotoRange(oTextCursor.getStart(), False)
+        newerPos = getCursor().getPosition()
+
+	' If the above changes didn't move the cursor then the current
+	' line starts with whitespace or its on the first line.
+	' If the former is true then move the cursor to the end of the above
+	' line and then back one word.
+        If olderPos.X() = newerPos.X() And olderPos.Y() = newerPos.Y() Then
+            getCursor().goUp(1, bExpand)
+            newerPos = getCursor().getPosition()
+            If olderPos.Y() <> newerPos.Y() Then
+                getCursor().gotoEndOfLine(bExpand)
+		' Apply change above to oTextCursor
+                oTextCursor = getTextCursor()
+                oTextCursor.gotoPreviousWord(bExpand)
+            End If
+        End If
+
+
     ElseIf keyChar = "e" Then
         If oTextCursor.isEndOfWord(bExpand) Then
             oTextCursor.gotoNextWord(bExpand)
         End If
         oTextCursor.gotoEndOfWord(bExpand)
 
-        ' This is needed in case the current line has no words.
+        ' This is needed in case the current line starts with whitespace.
         ' This way it will go to the next line (if it exists).
         If NOT oTextCursor.isEndofWord(bExpand) Then
             oTextCursor.gotoNextWord(bExpand)
