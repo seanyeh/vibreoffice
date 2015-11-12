@@ -413,8 +413,8 @@ Function ProcessStandardMovementKey(oEvent)
         ProcessMovementKey("l", True)
     ElseIf c = 1028 Then
         ProcessMovementKey("^", True)
-	ElseIf c = "0" Then
-		ProcessMovementKey("0", True) ' key for zero (0)
+    ElseIf c = "0" Then
+        ProcessMovementKey("0", True) ' key for zero (0)
     ElseIf c = 1029 Then
         ProcessMovementKey("$", True)
     Else
@@ -983,6 +983,13 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
             oTextCursor.gotoNextWord(bExpand)
         End If
         oTextCursor.gotoEndOfWord(bExpand)
+
+        ' This is needed in case the current line has no words.
+        ' This way it will go to the next line (if it exists).
+        If NOT oTextCursor.isEndofWord(bExpand) Then
+            oTextCursor.gotoNextWord(bExpand)
+            oTextCursor.gotoEndofWord(bExpand)
+        End If
 
     ElseIf keyChar = ")" Then
         oTextCursor.gotoNextSentence(bExpand)
