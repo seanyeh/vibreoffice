@@ -980,25 +980,35 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         dim olderPos, newerPos
         olderPos = getCursor().getPosition()
         oTextCursor.gotoPreviousWord(bExpand)
-	' Set global cursor to oTextCursor's position
+        ' Set global cursor to oTextCursor's position
         getCursor().gotoRange(oTextCursor.getStart(), False)
         newerPos = getCursor().getPosition()
 
-	' If the above changes didn't move the cursor then the current
-	' line starts with whitespace or its on the first line.
-	' If the former is true then move the cursor to the end of the above
-	' line and then back one word.
+        ' If the above changes didn't move the cursor then the current
+        ' line starts with whitespace or its on the first line.
+        ' If the former is true then move the cursor to the end of the above
+        ' line and then back one word if it is not already on a word and the
+        ' line is not empty.
         If olderPos.X() = newerPos.X() And olderPos.Y() = newerPos.Y() Then
             getCursor().goUp(1, bExpand)
             newerPos = getCursor().getPosition()
+            ' If the cursor did go up a line
             If olderPos.Y() <> newerPos.Y() Then
-                getCursor().gotoEndOfLine(bExpand)
-		' Apply change above to oTextCursor
-                oTextCursor = getTextCursor()
-                oTextCursor.gotoPreviousWord(bExpand)
+                ' If the line is not empty
+                If NOT (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine()) Then
+                    getCursor().gotoEndOfLine(bExpand)
+                    ' Apply change above to oTextCursor
+                    oTextCursor = getTextCursor()
+                    ' If the cursor is not already on the start of a word
+                    ' then go back one word
+                    If NOT oTextCursor.isStartOfWord() Then
+                        oTextCursor.gotoPreviousWord(bExpand)
+                    End If
+                Else
+                    bSetCursor = False
+                End If
             End If
         End If
-
 
     ElseIf keyChar = "e" Then
         If oTextCursor.isEndOfWord(bExpand) Then
