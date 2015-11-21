@@ -975,7 +975,23 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ElseIf keyChar = "G" Then
         oTextCursor.gotoEnd(bExpand)
     ElseIf keyChar = "w" or keyChar = "W" Then
+        ' Using soley gotoNextWord would mean that the cursor would not be 
+        ' moved to the next word when it involved moving down a line and 
+        ' that line happened to begin with whitespace. It would also mean that 
+	' the cursor would not skip over lines that only contain whitespace.
+
         oTextCursor.gotoNextWord(bExpand)
+        getCursor().gotoRange(oTextCursor.getStart(), False)
+	' Stop looping when the cursor reaches the start of a word, an empty 
+	' line, or cannot be moved further (reaches end of file).
+        Do Until oTextCursor.isStartOfWord() Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
+            ' gotoNextWord returns false when it cannot further advance the 
+	    ' cursor.
+            If NOT oTextCursor.gotoNextWord(bExpand) Then
+                Exit Do
+            End If
+            getCursor().gotoRange(oTextCursor.getStart(), False)
+        Loop
     ElseIf keyChar = "b" or keyChar = "B" Then
         ' The function gotoPreviousWord causes a lot of problems. The 
         ' following method doesn't have to account for as many special cases.
@@ -996,7 +1012,6 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
             End If
             getCursor().goLeft(1, bExpand)
         Loop
-
     ElseIf keyChar = "e" Then
         If oTextCursor.isEndOfWord(bExpand) Then
             oTextCursor.gotoNextWord(bExpand)
