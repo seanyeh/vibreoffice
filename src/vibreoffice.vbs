@@ -977,26 +977,25 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ElseIf keyChar = "w" or keyChar = "W" Then
         oTextCursor.gotoNextWord(bExpand)
     ElseIf keyChar = "b" or keyChar = "B" Then
-        ' If the oTextCursor.gotoPreviousWord didn't move the cursor then the 
-        ' current line starts with whitespace or it is the first word on the 
-        ' first line. If the former is true then move the cursor to the end of 
-        ' the above line. If the above line is not empty and the cursor is not 
-        ' already on the start of a word then go to the previous word.
-        If NOT oTextCursor.gotoPreviousWord(bExpand) And getCursor().goUp(1, bExpand) Then
-                ' If the line is not empty
-                If NOT (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine()) Then
-                    getCursor().gotoEndOfLine(bExpand)
-                    ' Apply changes above to oTextCursor
-                    oTextCursor = getTextCursor()
-                    ' If the cursor is not already on the start of a word 
-                    ' then go back one word
-                    If NOT oTextCursor.isStartOfWord() Then
-                        oTextCursor.gotoPreviousWord(bExpand)
-                    End If
-                Else
-                    bSetCursor = False
-                End If
-        End If
+        ' The function gotoPreviousWord causes a lot of problems. The 
+        ' following method doesn't have to account for as many special cases.
+
+        ' Move cursor to left in case cursor is already at the start of a word 
+        ' or is already on an empty line.
+        oTextCursor.goLeft(1, bExpand)
+        getCursor().goLeft(1, bExpand)
+
+        ' Move cursor left to the start of previous word or until it hits an 
+        ' empty line or until it can't move left anymore (reaches first line). 
+        ' gotoStartOfWord gets stuck sometimes so manually moving the cursor 
+        ' left is necessary in these cases.
+        Do Until oTextCursor.gotoStartOfWord(bExpand) Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
+            ' If cursor can no longer move left then break loop
+            If NOT oTextCursor.goLeft(1, bExpand) Then
+                Exit Do
+            End If
+            getCursor().goLeft(1, bExpand)
+        Loop
 
     ElseIf keyChar = "e" Then
         If oTextCursor.isEndOfWord(bExpand) Then
