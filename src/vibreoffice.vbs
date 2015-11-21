@@ -975,41 +975,43 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ElseIf keyChar = "G" Then
         oTextCursor.gotoEnd(bExpand)
     ElseIf keyChar = "w" or keyChar = "W" Then
+        ' Using soley gotoNextWord would mean that the cursor would not be 
+        ' moved to the next word when it involved moving down a line and 
+        ' that line happened to begin with whitespace. It would also mean that 
+	' the cursor would not skip over lines that only contain whitespace.
+
         oTextCursor.gotoNextWord(bExpand)
-    ElseIf keyChar = "b" or keyChar = "B" Then
-        dim olderPos, newerPos
-        olderPos = getCursor().getPosition()
-        oTextCursor.gotoPreviousWord(bExpand)
-        ' Set global cursor to oTextCursor's position
         getCursor().gotoRange(oTextCursor.getStart(), False)
-        newerPos = getCursor().getPosition()
-
-        ' If the above changes didn't move the cursor then the current
-        ' line starts with whitespace or its on the first line.
-        ' If the former is true then move the cursor to the end of the above
-        ' line and then back one word if it is not already on a word and the
-        ' line is not empty.
-        If olderPos.X() = newerPos.X() And olderPos.Y() = newerPos.Y() Then
-            getCursor().goUp(1, bExpand)
-            newerPos = getCursor().getPosition()
-            ' If the cursor did go up a line
-            If olderPos.Y() <> newerPos.Y() Then
-                ' If the line is not empty
-                If NOT (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine()) Then
-                    getCursor().gotoEndOfLine(bExpand)
-                    ' Apply change above to oTextCursor
-                    oTextCursor = getTextCursor()
-                    ' If the cursor is not already on the start of a word
-                    ' then go back one word
-                    If NOT oTextCursor.isStartOfWord() Then
-                        oTextCursor.gotoPreviousWord(bExpand)
-                    End If
-                Else
-                    bSetCursor = False
-                End If
+	' Stop looping when the cursor reaches the start of a word, an empty 
+	' line, or cannot be moved further (reaches end of file).
+        Do Until oTextCursor.isStartOfWord() Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
+            ' gotoNextWord returns false when it cannot further advance the 
+	    ' cursor.
+            If NOT oTextCursor.gotoNextWord(bExpand) Then
+                Exit Do
             End If
-        End If
+            getCursor().gotoRange(oTextCursor.getStart(), False)
+        Loop
+    ElseIf keyChar = "b" or keyChar = "B" Then
+        ' The function gotoPreviousWord causes a lot of problems. The 
+        ' following method doesn't have to account for as many special cases.
 
+        ' Move cursor to left in case cursor is already at the start of a word 
+        ' or is already on an empty line.
+        oTextCursor.goLeft(1, bExpand)
+        getCursor().goLeft(1, bExpand)
+
+        ' Move cursor left to the start of previous word or until it hits an 
+        ' empty line or until it can't move left anymore (reaches first line). 
+        ' gotoStartOfWord gets stuck sometimes so manually moving the cursor 
+        ' left is necessary in these cases.
+        Do Until oTextCursor.gotoStartOfWord(bExpand) Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
+            ' If cursor can no longer move left then break loop
+            If NOT oTextCursor.goLeft(1, bExpand) Then
+                Exit Do
+            End If
+            getCursor().goLeft(1, bExpand)
+        Loop
     ElseIf keyChar = "e" Then
         If oTextCursor.isEndOfWord(bExpand) Then
             oTextCursor.gotoNextWord(bExpand)
