@@ -977,29 +977,18 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ElseIf keyChar = "w" or keyChar = "W" Then
         oTextCursor.gotoNextWord(bExpand)
     ElseIf keyChar = "b" or keyChar = "B" Then
-        dim olderPos, newerPos
-        olderPos = getCursor().getPosition()
-        oTextCursor.gotoPreviousWord(bExpand)
-        ' Set global cursor to oTextCursor's position
-        getCursor().gotoRange(oTextCursor.getStart(), False)
-        newerPos = getCursor().getPosition()
-
-        ' If the above changes didn't move the cursor then the current
-        ' line starts with whitespace or its on the first line.
-        ' If the former is true then move the cursor to the end of the above
-        ' line and then back one word if it is not already on a word and the
-        ' line is not empty.
-        If olderPos.X() = newerPos.X() And olderPos.Y() = newerPos.Y() Then
-            getCursor().goUp(1, bExpand)
-            newerPos = getCursor().getPosition()
-            ' If the cursor did go up a line
-            If olderPos.Y() <> newerPos.Y() Then
+        ' If the oTextCursor.gotoPreviousWord didn't move the cursor then the 
+        ' current line starts with whitespace or it is the first word on the 
+        ' first line. If the former is true then move the cursor to the end of 
+        ' the above line. If the above line is not empty and the cursor is not 
+        ' already on the start of a word then go to the previous word.
+        If NOT oTextCursor.gotoPreviousWord(bExpand) And getCursor().goUp(1, bExpand) Then
                 ' If the line is not empty
                 If NOT (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine()) Then
                     getCursor().gotoEndOfLine(bExpand)
-                    ' Apply change above to oTextCursor
+                    ' Apply changes above to oTextCursor
                     oTextCursor = getTextCursor()
-                    ' If the cursor is not already on the start of a word
+                    ' If the cursor is not already on the start of a word 
                     ' then go back one word
                     If NOT oTextCursor.isStartOfWord() Then
                         oTextCursor.gotoPreviousWord(bExpand)
@@ -1007,7 +996,6 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
                 Else
                     bSetCursor = False
                 End If
-            End If
         End If
 
     ElseIf keyChar = "e" Then
