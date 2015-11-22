@@ -978,23 +978,24 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         ' Using soley gotoNextWord would mean that the cursor would not be 
         ' moved to the next word when it involved moving down a line and 
         ' that line happened to begin with whitespace. It would also mean that 
-	' the cursor would not skip over lines that only contain whitespace.
+        ' the cursor would not skip over lines that only contain whitespace.
 
         oTextCursor.gotoNextWord(bExpand)
         getCursor().gotoRange(oTextCursor.getStart(), False)
-	' Stop looping when the cursor reaches the start of a word, an empty 
-	' line, or cannot be moved further (reaches end of file).
+        ' Stop looping when the cursor reaches the start of a word, an empty 
+        ' line, or cannot be moved further (reaches end of file).
         Do Until oTextCursor.isStartOfWord() Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
             ' gotoNextWord returns false when it cannot further advance the 
-	    ' cursor.
+            ' cursor.
             If NOT oTextCursor.gotoNextWord(bExpand) Then
                 Exit Do
             End If
             getCursor().gotoRange(oTextCursor.getStart(), False)
         Loop
     ElseIf keyChar = "b" or keyChar = "B" Then
-        ' The function gotoPreviousWord causes a lot of problems. The 
-        ' following method doesn't have to account for as many special cases.
+        ' The function gotoPreviousWord causes a lot of problems when trying 
+        ' to emulate vim behavior. The following method doesn't have to 
+        ' account for as many special cases.
 
         ' Move cursor to left in case cursor is already at the start of a word 
         ' or is already on an empty line.
@@ -1013,17 +1014,26 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
             getCursor().goLeft(1, bExpand)
         Loop
     ElseIf keyChar = "e" Then
-        If oTextCursor.isEndOfWord(bExpand) Then
-            oTextCursor.gotoNextWord(bExpand)
-        End If
-        oTextCursor.gotoEndOfWord(bExpand)
+        ' The function gotoNextWord causes a lot of problems when trying to 
+        ' emulate vim behavior. The following method doesn't have to account 
+        ' for as many special cases.
 
-        ' This is needed in case the current line starts with whitespace.
-        ' This way it will go to the next line (if it exists).
-        If NOT oTextCursor.isEndofWord(bExpand) Then
-            oTextCursor.gotoNextWord(bExpand)
-            oTextCursor.gotoEndofWord(bExpand)
-        End If
+        ' Move cursor to right in case cursor is already at the end of a word 
+        ' or is already on an empty line.
+        oTextCursor.goRight(1, bExpand)
+        getCursor().goRight(1, bExpand)
+
+        ' Move cursor right to the end of next word or until it hits an empty
+        ' line or until it can't move right anymore (reaches first line). 
+        ' gotoEndOfWord gets stuck sometimes so manually moving the cursor 
+        ' right is necessary in these cases.
+        Do Until oTextCursor.gotoEndOfWord(bExpand) Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
+            ' If cursor can no longer move right then break loop
+            If NOT oTextCursor.goRight(1, bExpand) Then
+                Exit Do
+            End If
+            getCursor().goRight(1, bExpand)
+        Loop
 
     ElseIf keyChar = ")" Then
         oTextCursor.gotoNextSentence(bExpand)
