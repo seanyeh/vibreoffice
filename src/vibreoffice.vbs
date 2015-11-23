@@ -975,64 +975,101 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ElseIf keyChar = "G" Then
         oTextCursor.gotoEnd(bExpand)
     ElseIf keyChar = "w" or keyChar = "W" Then
-        ' Using soley gotoNextWord would mean that the cursor would not be 
-        ' moved to the next word when it involved moving down a line and 
-        ' that line happened to begin with whitespace. It would also mean that 
-        ' the cursor would not skip over lines that only contain whitespace.
+        ' For the case when the user enters "cw":
+        If getSpecial() = "c" Then
+            ' If the cursor is on a word then delete from the current position to 
+            ' the end of the word.
+            ' If the cursor is not on a word then delete from the current position 
+            ' to the start of the next word or until the end of the line.
 
-        oTextCursor.gotoNextWord(bExpand)
-        getCursor().gotoRange(oTextCursor.getStart(), False)
-        ' Stop looping when the cursor reaches the start of a word, an empty 
-        ' line, or cannot be moved further (reaches end of file).
-        Do Until oTextCursor.isStartOfWord() Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
-            ' gotoNextWord returns false when it cannot further advance the 
-            ' cursor.
-            If NOT oTextCursor.gotoNextWord(bExpand) Then
-                Exit Do
+            If NOT getCursor().isAtEndOfLine() Then
+               ' Move cursor to right in case it is already at start or end of 
+               ' word.
+               oTextCursor.goRight(1, bExpand)
+               getCursor().goRight(1, bExpand)
             End If
-            getCursor().gotoRange(oTextCursor.getStart(), False)
-        Loop
+
+            Do Until oTextCursor.isEndOfWord() Or oTextCursor.isStartOfWord() Or getCursor().isAtEndOfLine()
+                oTextCursor.goRight(1, bExpand)
+                getCursor().goRight(1, bExpand)
+            Loop
+
+        ' For the case when the user enters "w" or "dw":
+        Else
+            ' For "w", using gotoNextWord would mean that the cursor would not 
+            ' be moved to the next word when it involved moving down a line and 
+            ' that line happened to begin with whitespace. It would also mean 
+            ' that the cursor would not skip over lines that only contain 
+            ' whitespace.
+
+            If NOT (getSpecial() = "d" And getCursor().isAtEndOfLine()) Then
+                ' Move cursor to right in case cursor is already at the start 
+                ' of a word. 
+                ' Additionally for "w", move right in case already on an empty 
+                ' line.
+                oTextCursor.goRight(1, bExpand)
+                getCursor().goRight(1, bExpand)
+            End If
+
+            ' Stop looping when the cursor reaches the start of a word, an empty 
+            ' line, or cannot be moved further (reaches end of file).
+            ' Additionally, if "dw" then stop looping if end of line is reached.
+            Do Until oTextCursor.isStartOfWord() Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
+                ' If "dw" then do not delete past the end of the line
+                If getSpecial() = "d" And getCursor().isAtEndOfLine() Then
+                    Exit Do
+                ' If "w" then stop advancing cursor if cursor can no longer 
+                ' move right
+                ElseIf NOT oTextCursor.goRight(1, bExpand) Then
+                    Exit Do
+                End If
+                getCursor().goRight(1, bExpand)
+            Loop
+        End If
     ElseIf keyChar = "b" or keyChar = "B" Then
+        ' When the user enters "b", "cb", or "db":
+
         ' The function gotoPreviousWord causes a lot of problems when trying 
         ' to emulate vim behavior. The following method doesn't have to 
         ' account for as many special cases.
 
-        ' Move cursor to left in case cursor is already at the start of a word 
-        ' or is already on an empty line.
+        ' Moves the cursor to the start of the previous word or until an empty 
+        ' line is reached.
+
+        ' Move cursor to left in case cursor is already at the start 
+        ' of a word or on on an empty line. 
         oTextCursor.goLeft(1, bExpand)
         getCursor().goLeft(1, bExpand)
 
-        ' Move cursor left to the start of previous word or until it hits an 
-        ' empty line or until it can't move left anymore (reaches first line). 
-        ' gotoStartOfWord gets stuck sometimes so manually moving the cursor 
-        ' left is necessary in these cases.
-        Do Until oTextCursor.gotoStartOfWord(bExpand) Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
-            ' If cursor can no longer move left then break loop
+        ' Stop looping when the cursor reaches the start of a word, an empty 
+        ' line, or cannot be moved further (reaches start of file).
+        Do Until oTextCursor.isStartOfWord() Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
+            ' Stop moving cursor if cursor can no longer move left
             If NOT oTextCursor.goLeft(1, bExpand) Then
                 Exit Do
             End If
             getCursor().goLeft(1, bExpand)
         Loop
     ElseIf keyChar = "e" Then
+        ' When the user enters "e", "ce", or "de":
+
         ' The function gotoNextWord causes a lot of problems when trying to 
         ' emulate vim behavior. The following method doesn't have to account 
         ' for as many special cases.
 
-        ' Move cursor to right in case cursor is already at the end of a word 
-        ' or is already on an empty line.
-        oTextCursor.goRight(1, bExpand)
-        getCursor().goRight(1, bExpand)
+        ' Moves the cursor to the end of the next word or end of file if there 
+        ' are no more words.
 
-        ' Move cursor right to the end of next word or until it hits an empty
-        ' line or until it can't move right anymore (reaches first line). 
+        ' Move cursor to right in case cursor is already at the end of a word.
+        oTextCursor.goRight(1, bExpand)
+
         ' gotoEndOfWord gets stuck sometimes so manually moving the cursor 
         ' right is necessary in these cases.
-        Do Until oTextCursor.gotoEndOfWord(bExpand) Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
+        Do Until oTextCursor.gotoEndOfWord(bExpand)
             ' If cursor can no longer move right then break loop
             If NOT oTextCursor.goRight(1, bExpand) Then
                 Exit Do
             End If
-            getCursor().goRight(1, bExpand)
         Loop
 
     ElseIf keyChar = ")" Then
