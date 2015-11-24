@@ -571,7 +571,7 @@ Function ProcessNormalKey(keyChar, modifiers)
     End If
 
     ' Only 'x' or Special (dd, cc) can be done more than once
-    If keyChar <> "x" and getSpecial() = "" Then
+    If keyChar <> "x" And keyChar <> "X" And getSpecial() = "" Then
         iIterations = 1
     End If
     For i = 1 To iIterations
@@ -687,8 +687,12 @@ Function ProcessSpecialKey(keyChar)
         bMatched = False
 
 
-    ElseIf keyChar = "x" Then
+    ElseIf keyChar = "x" Or keyChar = "X" Then
         oTextCursor = getTextCursor()
+        If keyChar = "X" And MODE <> "VISUAL" Then
+            oTextCursor.collapseToStart()
+            oTextCursor.goLeft(1, True)
+        End If
         thisComponent.getCurrentController.Select(oTextCursor)
         yankSelection(True)
 
@@ -980,18 +984,16 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
             ' If the cursor is on a word then delete from the current position to 
             ' the end of the word.
             ' If the cursor is not on a word then delete from the current position 
-            ' to the start of the next word or until the end of the line.
+            ' to the start of the next word or until the end of the paragraph.
 
-            If NOT getCursor().isAtEndOfLine() Then
+            If NOT oTextCursor.isEndOfParagraph() Then
                ' Move cursor to right in case it is already at start or end of 
                ' word.
                oTextCursor.goRight(1, bExpand)
-               getCursor().goRight(1, bExpand)
             End If
 
-            Do Until oTextCursor.isEndOfWord() Or oTextCursor.isStartOfWord() Or getCursor().isAtEndOfLine()
+            Do Until oTextCursor.isEndOfWord() Or oTextCursor.isStartOfWord() Or oTextCursor.isEndOfParagraph()
                 oTextCursor.goRight(1, bExpand)
-                getCursor().goRight(1, bExpand)
             Loop
 
         ' For the case when the user enters "w" or "dw":
@@ -1002,28 +1004,26 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
             ' that the cursor would not skip over lines that only contain 
             ' whitespace.
 
-            If NOT (getSpecial() = "d" And getCursor().isAtEndOfLine()) Then
+            If NOT (getSpecial() = "d" And oTextCursor.isEndOfParagraph()) Then
                 ' Move cursor to right in case cursor is already at the start 
                 ' of a word. 
                 ' Additionally for "w", move right in case already on an empty 
                 ' line.
                 oTextCursor.goRight(1, bExpand)
-                getCursor().goRight(1, bExpand)
             End If
 
             ' Stop looping when the cursor reaches the start of a word, an empty 
             ' line, or cannot be moved further (reaches end of file).
-            ' Additionally, if "dw" then stop looping if end of line is reached.
-            Do Until oTextCursor.isStartOfWord() Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
+            ' Additionally, if "dw" then stop looping if end of paragraph is reached.
+            Do Until oTextCursor.isStartOfWord() Or (oTextCursor.isStartOfParagraph() And oTextCursor.isEndOfParagraph())
                 ' If "dw" then do not delete past the end of the line
-                If getSpecial() = "d" And getCursor().isAtEndOfLine() Then
+                If getSpecial() = "d" And oTextCursor.isEndOfParagraph() Then
                     Exit Do
                 ' If "w" then stop advancing cursor if cursor can no longer 
                 ' move right
                 ElseIf NOT oTextCursor.goRight(1, bExpand) Then
                     Exit Do
                 End If
-                getCursor().goRight(1, bExpand)
             Loop
         End If
     ElseIf keyChar = "b" or keyChar = "B" Then
@@ -1039,16 +1039,14 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         ' Move cursor to left in case cursor is already at the start 
         ' of a word or on on an empty line. 
         oTextCursor.goLeft(1, bExpand)
-        getCursor().goLeft(1, bExpand)
 
         ' Stop looping when the cursor reaches the start of a word, an empty 
         ' line, or cannot be moved further (reaches start of file).
-        Do Until oTextCursor.isStartOfWord() Or (getCursor().isAtStartOfLine() And getCursor().isAtEndOfLine())
+        Do Until oTextCursor.isStartOfWord() Or (oTextCursor.isStartOfParagraph() And oTextCursor.isEndOfParagraph())
             ' Stop moving cursor if cursor can no longer move left
             If NOT oTextCursor.goLeft(1, bExpand) Then
                 Exit Do
             End If
-            getCursor().goLeft(1, bExpand)
         Loop
     ElseIf keyChar = "e" Then
         ' When the user enters "e", "ce", or "de":
