@@ -998,11 +998,11 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
 
         ' For the case when the user enters "w" or "dw":
         Else
-            ' For "w", using gotoNextWord would mean that the cursor would not 
-            ' be moved to the next word when it involved moving down a line and 
-            ' that line happened to begin with whitespace. It would also mean 
-            ' that the cursor would not skip over lines that only contain 
-            ' whitespace.
+            ' Note: For "w", using gotoNextWord would mean that the cursor 
+            ' would not be moved to the next word when it involved moving down 
+            ' a line and that line happened to begin with whitespace. It would 
+            ' also mean that the cursor would not skip over lines that only 
+            ' contain whitespace.
 
             If NOT (getSpecial() = "d" And oTextCursor.isEndOfParagraph()) Then
                 ' Move cursor to right in case cursor is already at the start 
@@ -1029,16 +1029,43 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ElseIf keyChar = "b" or keyChar = "B" Then
         ' When the user enters "b", "cb", or "db":
 
-        ' The function gotoPreviousWord causes a lot of problems when trying 
-        ' to emulate vim behavior. The following method doesn't have to 
+        ' Note: The function gotoPreviousWord causes a lot of problems when 
+        ' trying to emulate vim behavior. The following method doesn't have to 
         ' account for as many special cases.
 
-        ' Moves the cursor to the start of the previous word or until an empty 
+        ' "b": Moves the cursor to the start of the previous word or until an empty 
         ' line is reached.
 
-        ' Move cursor to left in case cursor is already at the start 
-        ' of a word or on on an empty line. 
-        oTextCursor.goLeft(1, bExpand)
+        ' "db": Does same thing as "b" only it deletes everything between the 
+        ' orginal cursor position and the new cursor position. The exception to 
+        ' this is that if the original cursor position was at the start of a 
+        ' paragraph and the new cursor position is on a separate paragraph with 
+        ' at least two words then don't delete the new line char to the "left" 
+        ' of the original paragraph.
+
+        ' "dc": Does the same as "db" only the new line char described in "db" 
+        ' above is never deleted.
+
+
+        ' This variable is used to tell whether or not we need to make a 
+        ' distinction between "b", "cb", and "db".
+        dim dc_db as boolean
+
+        ' Move cursor to left in case cursor is already at the start of a word 
+        ' or on on an empty line. If cursor can move left and user enterd "dc" 
+        ' or "db" and the cursor was originally on the start of a paragraph 
+        ' then set dc_db to true and unselect the new line character separating 
+        ' the paragraphs. If cursor can't move left then there is no line above 
+        ' the current one and no need to make a distinction between "b", "cb", 
+        ' and "db".
+        dc_db = False
+        If oTextCursor.isStartOfParagraph() And oTextCursor.goLeft(1, bExpand) Then
+            If getSpecial() = "c" Or getSpecial() = "d" Then
+                dc_db = True
+                ' If all conditions above are met then unselect the \n char.
+                oTextCursor.collapseToStart()
+            End If
+        End If
 
         ' Stop looping when the cursor reaches the start of a word, an empty 
         ' line, or cannot be moved further (reaches start of file).
@@ -1048,6 +1075,30 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
                 Exit Do
             End If
         Loop
+
+        If dc_db Then
+            ' Make a clone of oTextCursor called oTextCursor2 and use it to 
+            ' check if there are at least two words in the "new" paragraph. 
+            ' If there are <2 words then the loop will stop when the cursor 
+            ' cursor reaches the start of a paragraph. If there >=2 words then 
+            ' then the loop will stop when the cursor reaches the end of a word.
+            dim oTextCursor2
+            oTextCursor2 = getCursor().getText.createTextCursorByRange(oTextCursor)
+            Do Until oTextCursor2.isEndOfWord() Or oTextCursor2.isStartOfParagraph()
+                oTextCursor2.goLeft(1, bExpand)
+            Loop
+            ' If there are less than 2 words on the "new" paragraph then set 
+            ' oTextCursor to oTextCursor 2. This is because vim's behavior is 
+            ' to clear the "new" paragraph under these conditions.
+            If oTextCursor2.isStartOfParagraph() Then
+                oTextCursor = oTextCursor2
+                oTextCursor.gotoRange(oTextCursor.getStart(), bExpand)
+                ' If user entered "db" then reselect the \n char from before.
+                If getSpecial() = "d" Then
+                    oTextCursor.goRight(1, bExpand)
+                End If
+            End If
+        End If
     ElseIf keyChar = "e" Then
         ' When the user enters "e", "ce", or "de":
 
@@ -1057,6 +1108,7 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
 
         ' Moves the cursor to the end of the next word or end of file if there 
         ' are no more words.
+
 
         ' Move cursor to right in case cursor is already at the end of a word.
         oTextCursor.goRight(1, bExpand)
