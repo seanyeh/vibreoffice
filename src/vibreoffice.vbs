@@ -36,6 +36,8 @@ global oXKeyHandler as object
 global MODE as string
 global VIEW_CURSOR as object
 global MULTIPLIER as integer
+global VISUAL_BASE as object ' Line that is first selected when VISUAL_LINE 
+                             ' mode is entered
 
 ' -----------
 ' Singletons
@@ -89,13 +91,26 @@ Function gotoMode(sMode)
             setMode("INSERT")
         Case "VISUAL":
             setMode("VISUAL")
-
             dim oTextCursor
             oTextCursor = getTextCursor()
             ' Deselect TextCursor
             oTextCursor.gotoRange(oTextCursor.getStart(), False)
             ' Show TextCursor selection
             thisComponent.getCurrentController.Select(oTextCursor)
+        Case "VISUAL_LINE":
+            setMode("VISUAL_LINE")
+            ' Select the current line
+            dim oldPos, newPos
+            oldPos = getCursor().getPosition()
+            getCursor().gotoStartOfLine(True)
+            getCursor().collapseToStart()
+            getCursor().gotoEndOfLine(True)
+            newPos = getCursor().getPosition()
+            ' If gotoEndOfLine moved cursor to bellow line then move it back
+            If oldPos.Y() <> newPos.Y() Then
+                getCursor().goLeft(1, True)
+            End If
+            VISUAL_BASE = getCursor().getPosition()
     End Select
 End Function
 
@@ -323,7 +338,7 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         delaySpecialReset()
 
     ' If standard movement key (in VISUAL mode) like arrow keys, home, end
-    ElseIf MODE = "VISUAL" And ProcessStandardMovementKey(oEvent) Then
+    ElseIf (MODE = "VISUAL" Or MODE = "VISUAL_LINE") And ProcessStandardMovementKey(oEvent) Then
         ' Pass
 
     ' If bIsSpecial but nothing matched, return to normal mode
@@ -400,7 +415,7 @@ Function ProcessStandardMovementKey(oEvent)
 
     bMatched = True
 
-    If MODE <> "VISUAL" Then
+    If (MODE <> "VISUAL" And MODE <> "VISUAL_LINE") Then
         bMatched = False
         'Pass
     ElseIf c = 1024 Then
@@ -480,6 +495,8 @@ Function ProcessModeKey(oEvent)
             gotoMode("INSERT")
         Case "v":
             gotoMode("VISUAL")
+        Case "V":
+            gotoMode("VISUAL_LINE")
         Case Else:
             bMatched = False
     End Select
@@ -491,7 +508,7 @@ Function ProcessNormalKey(keyChar, modifiers)
     dim i, bMatched, bIsVisual, iIterations, bIsControl
     bIsControl = (modifiers = 2) or (modifiers = 8)
 
-    bIsVisual = (MODE = "VISUAL") ' is this hardcoding bad? what about visual block?
+    bIsVisual = (MODE = "VISUAL" Or MODE = "VISUAL_LINE") ' is this hardcoding bad? what about visual block?
 
     ' ----------------------
     ' 1. Check Movement Key
@@ -639,7 +656,7 @@ Function ProcessSpecialKey(keyChar)
 
 
         ' visual mode: delete selection
-        ElseIf MODE = "VISUAL" Then
+        ElseIf MODE = "VISUAL" Or MODE = "VISUAL_LINE" Then
             oTextCursor = getTextCursor()
             thisComponent.getCurrentController.Select(oTextCursor)
 
@@ -677,7 +694,7 @@ Function ProcessSpecialKey(keyChar)
 				oTextCursor.gotoStart(bExpand)
 		        getCursor().gotoRange(oTextCursor.getStart(), False)
 			End If
-		ElseIf MODE = "NORMAL" Or MODE = "VISUAL" Then
+		ElseIf MODE = "NORMAL" Or MODE = "VISUAL" Or MODE = "VISUAL_LINE" Then
 			setSpecial("g")
 		End If
 			
@@ -689,7 +706,7 @@ Function ProcessSpecialKey(keyChar)
 
     ElseIf keyChar = "x" Or keyChar = "X" Then
         oTextCursor = getTextCursor()
-        If keyChar = "X" And MODE <> "VISUAL" Then
+        If keyChar = "X" And MODE <> "VISUAL" And MODE <> "VISUAL_LINE" Then
             oTextCursor.collapseToStart()
             oTextCursor.goLeft(1, True)
         End If
@@ -703,7 +720,7 @@ Function ProcessSpecialKey(keyChar)
         gotoMode("NORMAL")
 
     ElseIf keyChar = "D" Or keyChar = "C" Then
-        If MODE = "VISUAL" Then
+        If MODE = "VISUAL" Or MODE = "VISUAL_LINE" Then
             ProcessMovementKey("^", False)
             ProcessMovementKey("$", True)
             ProcessMovementKey("l", True)
@@ -763,7 +780,7 @@ Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
 
     If Not bIsBackwards Then
         ' VISUAL mode will goRight AFTER the selection
-        If MODE <> "VISUAL" Then
+        If MODE <> "VISUAL" And MODE <> "VISUAL_LINE" Then
             ' Start searching from next character
             oTextCursor.goRight(1, bExpand)
         End If
@@ -823,7 +840,7 @@ Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
 
     ' If matched, then we want to select PAST the character
     ' Else, this will counteract some weirdness. hack either way
-    If Not bIsBackwards And MODE = "VISUAL" Then
+    If Not bIsBackwards And (MODE = "VISUAL" Or MODE = "VISUAL_LINE") Then
         oTextCursor.goRight(1, bExpand)
     End If
 
@@ -944,17 +961,86 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ElseIf keyChar = "h" Then
         oTextCursor.goLeft(1, bExpand)
 
-    ' oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn't (I dont know why).
-    ' So this is a weird hack
     ElseIf keyChar = "k" Then
-        'oTextCursor.goUp(1, False)
-        getCursor().goUp(1, bExpand)
+        If MODE = "VISUAL_LINE" Then
+            dim originalLine
+            originalLine = getCursor().getPosition().Y()
+            ' If cursor is already on or above the Visual base line.
+            If getCursor().getPosition().Y() <= VISUAL_BASE.Y() Then
+                ' If on Visual base line then format it for selecting above 
+                ' lines.
+                If VISUAL_BASE.Y() = getCursor().getPosition().Y() Then
+                    getCursor().gotoEndOfLine(bExpand)
+                    getCursor().collapseToEnd()
+                End If
+
+                ' Move cursor to start of above line.
+                Do Until getCursor().getPosition().Y() < originalLine
+                    If NOT getCursor().goUp(1, bExpand) Then
+                        Exit Do
+                    End If
+                Loop
+                getCursor().gotoStartOfLine(bExpand)
+
+            ' If cursor is already bellow the Visual base line.
+            ElseIf getCursor().getPosition().Y() > VISUAL_BASE.Y() Then
+                getCursor().goUp(1, bExpand)
+                getCursor().gotoEndOfLine(bExpand)
+                ' Move cursor back in case gotoEndOfLine moved cursor down.
+                If getCursor().getPosition().Y() = originalLine Then
+                    getCursor().goLeft(1, bExpand)
+                End If
+            End If
+
+        Else
+        ' oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn't (I dont know why).
+        ' So this is a weird hack
+            'oTextCursor.goUp(1, False)
+            getCursor().goUp(1, bExpand)
+        End If
         bSetCursor = False
 
     ElseIf keyChar = "j" Then
-        'oTextCursor.goDown(1, False)
-        getCursor().goDown(1, bExpand)
+        If MODE = "VISUAL_LINE" Then
+            ' If cursor is already on or bellow the Visual base line.
+            If getCursor().getPosition().Y() >= VISUAL_BASE.Y() Then
+                ' If on Visual base line then format it for selecting bellow 
+                ' lines.
+                If VISUAL_BASE.Y() = getCursor().getPosition().Y() Then
+                    getCursor().gotoStartOfLine(bExpand)
+                    getCursor().collapseToStart()
+                    getCursor().gotoEndOfLine(bExpand)
+                    ' Move cursor back in case gotoEndOfLine moved cursor down.
+                    If getCursor().getPosition().Y() > VISUAL_BASE.Y() Then
+                        getCursor().goLeft(1, bExpand)
+                    End If
+                End If
+
+                ' Move cursor to end of bellow line.
+                dim bellowLine
+                getCursor().goDown(1, bExpand)
+                bellowLine = getCursor().getPosition().Y()
+                getCursor().gotoEndOfLine(bExpand)
+                ' Move cursor back in case gotoEndOfLine moved cursor down.
+                If getCursor().getPosition().Y() > bellowLine Then
+                    getCursor().goLeft(1, bExpand)
+                End If
+
+            ' If cursor is above the Visual base line.
+            ElseIf getCursor().getPosition().Y() < VISUAL_BASE.Y() Then
+                ' Move cursor to start of bellow line.
+                getCursor().goDown(1, bExpand)
+                getCursor().gotoStartOfLine(bExpand)
+            End If
+
+        Else
+        ' oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn't (I dont know why).
+        ' So this is a weird hack
+            'oTextCursor.goDown(1, False)
+            getCursor().goDown(1, bExpand)
+        End If
         bSetCursor = False
+
     ' ----------
 
     ElseIf keyChar = "0" or keyChar = "^" Then
