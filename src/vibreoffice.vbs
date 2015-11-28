@@ -36,8 +36,8 @@ global oXKeyHandler as object
 global MODE as string
 global VIEW_CURSOR as object
 global MULTIPLIER as integer
-global VISUAL_BASE as object ' Line that is first selected when VISUAL_LINE 
-                             ' mode is entered
+global VISUAL_BASE as object ' Position of line that is first selected when 
+                             ' VISUAL_LINE mode is entered
 
 ' -----------
 ' Singletons
@@ -82,6 +82,29 @@ Sub setMode(modeName)
     setRawStatus(modeName)
 End Sub
 
+' Selects the current line and makes it the Visual base line for use with 
+' VISUAL_LINE mode.
+Function formatVisualBase()
+    dim oTextCursor
+    oTextCursor = getTextCursor()
+    VISUAL_BASE = getCursor().getPosition()
+
+    ' If current line is empty then select it.
+    If oTextCursor.isStartOfParagraph() And oTextCursor.isEndOfParagraph() Then
+        getCursor().goRight(1, False)
+        getCursor().goLeft(1, True)
+    Else
+        ' Select the current line by moving cursor to end of line and then 
+        ' back to the start of line.
+        getCursor().gotoEndOfLine(False)
+        ' Move cursor back if gotoEndOfLine moved cursor down.
+        If getCursor().getPosition().Y() > VISUAL_BASE.Y() Then
+            getCursor().goLeft(1, True)
+        End If
+        getCursor().gotoStartOfLine(True)
+    End If
+End Function
+
 Function gotoMode(sMode)
     Select Case sMode
         Case "NORMAL":
@@ -99,18 +122,8 @@ Function gotoMode(sMode)
             thisComponent.getCurrentController.Select(oTextCursor)
         Case "VISUAL_LINE":
             setMode("VISUAL_LINE")
-            ' Select the current line
-            dim oldPos, newPos
-            oldPos = getCursor().getPosition()
-            getCursor().gotoStartOfLine(True)
-            getCursor().collapseToStart()
-            getCursor().gotoEndOfLine(True)
-            newPos = getCursor().getPosition()
-            ' If gotoEndOfLine moved cursor to bellow line then move it back
-            If oldPos.Y() <> newPos.Y() Then
-                getCursor().goLeft(1, True)
-            End If
-            VISUAL_BASE = getCursor().getPosition()
+            ' Select the current line and set it as the Visual base line
+            formatVisualBase()
     End Select
 End Function
 
@@ -963,19 +976,20 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
 
     ElseIf keyChar = "k" Then
         If MODE = "VISUAL_LINE" Then
-            dim originalLine
-            originalLine = getCursor().getPosition().Y()
+            ' This variable represents the line that the user last selected.
+            dim lastSelected
+
             ' If cursor is already on or above the Visual base line.
             If getCursor().getPosition().Y() <= VISUAL_BASE.Y() Then
+                lastSelected = getCursor().getPosition().Y()
                 ' If on Visual base line then format it for selecting above 
                 ' lines.
                 If VISUAL_BASE.Y() = getCursor().getPosition().Y() Then
-                    getCursor().gotoEndOfLine(bExpand)
-                    getCursor().collapseToEnd()
+                    getCursor().gotoEndOfLine(False)
                 End If
 
-                ' Move cursor to start of above line.
-                Do Until getCursor().getPosition().Y() < originalLine
+                ' Move cursor to start of the line above last selected line.
+                Do Until getCursor().getPosition().Y() < lastSelected
                     If NOT getCursor().goUp(1, bExpand) Then
                         Exit Do
                     End If
@@ -984,12 +998,31 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
 
             ' If cursor is already bellow the Visual base line.
             ElseIf getCursor().getPosition().Y() > VISUAL_BASE.Y() Then
+                ' Cursor will be under the last selected line so it needs to 
+                ' be moved up before setting lastSelected.
                 getCursor().goUp(1, bExpand)
-                getCursor().gotoEndOfLine(bExpand)
-                ' Move cursor back in case gotoEndOfLine moved cursor down.
-                If getCursor().getPosition().Y() = originalLine Then
-                    getCursor().goLeft(1, bExpand)
+                lastSelected = getCursor().getPosition().Y()
+                ' Move cursor up another line to deselect the last selected
+                ' line.
+                getCursor().goUp(1, bExpand)
+
+                ' For the case when the last selected line was the line bellow 
+                ' the Visual base line, simply reformat the Visual base line.
+                If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
+                    formatVisualBase()
+
+                Else
+                    ' Make sure that the current line is fully selected.
+                    getCursor().gotoEndOfLine(bExpand)
+
+                    ' Make sure cursor is at the start of the line we 
+                    ' deselected. It needs to always be bellow the user's 
+                    ' selection when under the Visual base line.
+                    If getCursor().getPosition().Y() < lastSelected Then
+                        getCursor().goRight(1, bExpand)
+                    End If
                 End If
+
             End If
 
         Else
@@ -1007,23 +1040,22 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
                 ' If on Visual base line then format it for selecting bellow 
                 ' lines.
                 If VISUAL_BASE.Y() = getCursor().getPosition().Y() Then
-                    getCursor().gotoStartOfLine(bExpand)
-                    getCursor().collapseToStart()
+                    getCursor().gotoStartOfLine(False)
                     getCursor().gotoEndOfLine(bExpand)
-                    ' Move cursor back in case gotoEndOfLine moved cursor down.
-                    If getCursor().getPosition().Y() > VISUAL_BASE.Y() Then
-                        getCursor().goLeft(1, bExpand)
+                    ' Move cursor to next line if not already there.
+                    If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
+                        getCursor().goRight(1, bExpand)
                     End If
+
                 End If
 
-                ' Move cursor to end of bellow line.
-                dim bellowLine
-                getCursor().goDown(1, bExpand)
-                bellowLine = getCursor().getPosition().Y()
-                getCursor().gotoEndOfLine(bExpand)
-                ' Move cursor back in case gotoEndOfLine moved cursor down.
-                If getCursor().getPosition().Y() > bellowLine Then
-                    getCursor().goLeft(1, bExpand)
+                If getCursor().goDown(1, bExpand) Then
+                    getCursor().gotoStartOfLine(bExpand)
+
+                ' If cursor is on last line then select from current position 
+                ' to end of line.
+                Else
+                    getCursor().gotoEndOfLine(bExpand)
                 End If
 
             ' If cursor is above the Visual base line.
@@ -1032,6 +1064,7 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
                 getCursor().goDown(1, bExpand)
                 getCursor().gotoStartOfLine(bExpand)
             End If
+
 
         Else
         ' oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn't (I dont know why).
