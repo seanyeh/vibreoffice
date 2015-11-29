@@ -700,12 +700,34 @@ Function ProcessSpecialKey(keyChar)
 	' gg to go to beginning of text
 	ElseIf keyChar = "g" Then
 		If bIsSpecial Then
-			if getSpecial() = "g" Then
-				dim bExpand
-				bExpand = false
-				oTextCursor = getTextCursor()
-				oTextCursor.gotoStart(bExpand)
-		        getCursor().gotoRange(oTextCursor.getStart(), False)
+			If getSpecial() = "g" Then
+                ' If cursor is to left of current visual selection then select 
+                ' from right end of the selection to the start of file.
+                ' If cursor is to right of current visual selection then select 
+                ' from left end of the selection to the start of file.
+                If MODE = "VISUAL" Then
+                    dim oldPos
+                    oldPos = getCursor().getPosition()
+                    getCursor().gotoRange(getCursor().getStart(), True)
+                    If NOT samePos(getCursor().getPosition(), oldPos) Then
+                        getCursor().gotoRange(getCursor().getEnd(), False)
+                    End If
+
+                ' If in VISUAL_LINE mode and cursor is bellow the Visual base 
+                ' line then move it to the Visual base line, reformat the 
+                ' Visual base line, and move cursor to start of file.
+                ElseIf MODE = "VISUAL_LINE" Then
+                    Do Until getCursor().getPosition().Y() <= VISUAL_BASE.Y()
+                        getCursor().goUp(1, False)
+                    Loop
+                    If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
+                        formatVisualBase()
+                    End If
+                End If
+
+                dim bExpand
+                bExpand = MODE = "VISUAL" Or MODE = "VISUAL_LINE"
+                getCursor().gotoStart(bExpand)
 			End If
 		ElseIf MODE = "NORMAL" Or MODE = "VISUAL" Or MODE = "VISUAL_LINE" Then
 			setSpecial("g")
@@ -1065,7 +1087,6 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
                 getCursor().gotoStartOfLine(bExpand)
             End If
 
-
         Else
         ' oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn't (I dont know why).
         ' So this is a weird hack
@@ -1096,7 +1117,19 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         bSetCursor = False
 
     ElseIf keyChar = "G" Then
-        oTextCursor.gotoEnd(bExpand)
+        If MODE = "VISUAL_LINE" Then
+            ' If cursor is above Visual base line then move cursor down to it. 
+            Do Until getCursor().getPosition.Y() >= VISUAL_BASE.Y()
+                getCursor().goDown(1, False)
+            Loop
+            ' If cursor is on Visual base line then move it to start of line.
+            If getCursor().getPosition.Y() = VISUAL_BASE.Y() Then
+                getCursor().gotoStartOfLine(False)
+            End If
+        End If
+        getCursor().gotoEnd(bExpand)
+        bSetCursor = False
+
     ElseIf keyChar = "w" or keyChar = "W" Then
         ' For the case when the user enters "cw":
         If getSpecial() = "c" Then
