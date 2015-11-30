@@ -476,12 +476,13 @@ Function ProcessModeKey(oEvent)
     End If
 
     ' Mode matching
-    dim bMatched
+    dim bMatched, oTextCursor
     bMatched = True
+    oTextCursor = getTextCursor()
     Select Case oEvent.KeyChar
         ' Insert modes
         Case "i", "a", "I", "A", "o", "O":
-            If oEvent.KeyChar = "a" Then getCursor().goRight(1, False)
+            If oEvent.KeyChar = "a" And NOT oTextCursor.isEndOfParagraph() Then getCursor().goRight(1, False)
             If oEvent.KeyChar = "I" Then ProcessMovementKey("^")
             If oEvent.KeyChar = "A" Then ProcessMovementKey("$")
 
@@ -576,8 +577,10 @@ Function ProcessNormalKey(keyChar, modifiers)
     '   after that. Fix?
     ' --------------------
     If keyChar = "p" or keyChar = "P" Then
+        dim oTextCursor
+        oTextCursor = getTextCursor()
         ' Move cursor right if "p" to paste after cursor
-        If keyChar = "p" Then
+        If keyChar = "p" And NOT oTextCursor().isEndOfParagraph() Then
             ProcessMovementKey("l", False)
         End If
 
