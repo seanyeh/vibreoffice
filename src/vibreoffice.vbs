@@ -89,20 +89,15 @@ Function formatVisualBase()
     oTextCursor = getTextCursor()
     VISUAL_BASE = getCursor().getPosition()
 
-    ' If current line is empty then select it.
-    If oTextCursor.isStartOfParagraph() And oTextCursor.isEndOfParagraph() Then
-        getCursor().goRight(1, False)
-        getCursor().goLeft(1, True)
-    Else
-        ' Select the current line by moving cursor to end of line and then 
-        ' back to the start of line.
-        getCursor().gotoEndOfLine(False)
-        ' Move cursor back if gotoEndOfLine moved cursor down.
-        If getCursor().getPosition().Y() > VISUAL_BASE.Y() Then
+    ' Select the current line by moving cursor to start of the bellow line and 
+    ' then back to the start of the current line.
+    getCursor().gotoEndOfLine(False)
+    If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
+        If getCursor().goRight(1, False) Then
             getCursor().goLeft(1, True)
         End If
-        getCursor().gotoStartOfLine(True)
     End If
+    getCursor().gotoStartOfLine(True)
 End Function
 
 Function gotoMode(sMode)
@@ -497,7 +492,7 @@ Function ProcessModeKey(oEvent)
             End If
 
             If oEvent.KeyChar = "O" Then
-                ProcessMovementKey("^")
+                ProcessMovementKey("0")
                 getCursor().setString(chr(13))
                 If Not getCursor().isAtStartOfLine() Then
                     ProcessMovementKey("h")
@@ -653,7 +648,7 @@ Function ProcessSpecialKey(keyChar)
             bIsSpecialCase = (keyChar = "d" And getSpecial() = "d") Or (keyChar = "c" And getSpecial() = "c")
 
             If bIsSpecialCase Then
-                ProcessMovementKey("^", False)
+                ProcessMovementKey("0", False)
                 ProcessMovementKey("j", True)
 
                 oTextCursor = getTextCursor()
@@ -759,7 +754,7 @@ Function ProcessSpecialKey(keyChar)
 
     ElseIf keyChar = "D" Or keyChar = "C" Then
         If MODE = "VISUAL" Or MODE = "VISUAL_LINE" Then
-            ProcessMovementKey("^", False)
+            ProcessMovementKey("0", False)
             ProcessMovementKey("$", True)
             ProcessMovementKey("l", True)
         Else
@@ -780,7 +775,7 @@ Function ProcessSpecialKey(keyChar)
 
     ' S only valid in NORMAL mode
     ElseIf keyChar = "S" And MODE = "NORMAL" Then
-        ProcessMovementKey("^", False)
+        ProcessMovementKey("0", False)
         ProcessMovementKey("$", True)
         yankSelection(True)
         gotoMode("INSERT")
@@ -1011,6 +1006,12 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
                 ' lines.
                 If VISUAL_BASE.Y() = getCursor().getPosition().Y() Then
                     getCursor().gotoEndOfLine(False)
+                    ' Make sure that cursor is on the start of the line bellow 
+                    ' the Visual base line. This is needed to make sure the 
+                    ' new line character will be selected.
+                    If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
+                        getCursor().goRight(1, False)
+                    End If
                 End If
 
                 ' Move cursor to start of the line above last selected line.
@@ -1100,9 +1101,48 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
 
     ' ----------
 
-    ElseIf keyChar = "0" or keyChar = "^" Then
+    ElseIf keyChar = "0" Then
         getCursor().gotoStartOfLine(bExpand)
         bSetCursor = False
+    ElseIf keyChar = "^" Then
+        dim oldLine
+        oldLine = getCursor().getPosition().Y()
+
+        ' Select all of the current line and put it into a string.
+        getCursor().gotoEndOfLine(False)
+        If getCursor().getPosition.Y() > oldLine Then
+            ' If gotoEndOfLine moved cursor to next line then move it back.
+            getCursor().goLeft(1, False)
+        End If
+        getCursor().gotoStartOfLine(True)
+        dim s as String
+        s = getCursor().String
+
+        ' Undo any changes made to the view cursor, then move to start of 
+        ' line. This way any previous selction made by the user will remain.
+        getCursor().gotoRange(oTextCursor, False)
+        getCursor().gotoStartOfLine(bExpand)
+
+        ' This integer will be used to determine the position of the first 
+        ' character in the line that is not a space or a tab.
+        dim i as Integer
+        i = 1
+
+        ' Iterate through the characters in the string until a character that 
+        ' is not a space or a tab is found.
+        Do While i <= Len(s)
+            dim c
+            c = Mid(s,i,1)
+            If c <> " " And c <> Chr(9) Then
+                Exit Do
+            End If
+            i = i + 1
+        Loop
+
+        ' Move the cursor to the first non space/tab character.
+        getCursor().goRight(i - 1, bExpand)
+        bSetCursor = False
+
     ElseIf keyChar = "$" Then
         dim oldPos, newPos
         oldPos = getCursor().getPosition()
