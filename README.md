@@ -8,8 +8,8 @@ both vi/vim neophytes and experts alike.
 ### Installation/Usage
 
 The easiest way to install is to download the
-[latest extension file](https://raw.github.com/linuxmage/vibreoffice/master/dist/vibreoffice-1.1.1.oxt)
-and open it with LibreOffice/OpenOffice.
+[latest extension file](https://raw.github.com/linuxmage/vibreoffice/master/dist/vibreoffice-1.1.4.oxt)
+and open it with LibreOffice/OpenOffice. LibreOffice/OpenOffice will need to be restarted before this extension can be used.
 
 To enable/disable vibreoffice, simply select Tools -> Add-Ons -> vibreoffice.
 
@@ -59,6 +59,7 @@ my patience.
   word processing.
 - Using `d`, `c` (or any of their variants) will temporarily bring you into
   Visual mode. This is intentional and should not have any noticeable effects.
+- In OS X, repeating commands by holding down keys can have strange behavior.
 
 vibreoffice is new, so it is bound to have plenty of bugs. Please let me know
 if you run into anything!
