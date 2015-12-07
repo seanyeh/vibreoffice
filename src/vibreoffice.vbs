@@ -1105,6 +1105,8 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         getCursor().gotoStartOfLine(bExpand)
         bSetCursor = False
     ElseIf keyChar = "^" Then
+        ' This variable represents the original line the cursor was on before 
+        ' any of the following changes.
         dim oldLine
         oldLine = getCursor().getPosition().Y()
 
@@ -1305,8 +1307,9 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         ' are no more words.
 
 
-        ' Move cursor to right in case cursor is already at the end of a word.
-        oTextCursor.goRight(1, bExpand)
+        ' Move cursor to right by two in case cursor is already at the end of a 
+        ' word.
+        oTextCursor.goRight(2, bExpand)
 
         ' gotoEndOfWord gets stuck sometimes so manually moving the cursor 
         ' right is necessary in these cases.
@@ -1316,6 +1319,13 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
                 Exit Do
             End If
         Loop
+
+        ' gotoEndOfWord moves the cursor one character further than vim does so 
+        ' move it back one if end of word is reached and not expanding 
+        ' selection.
+        If NOT bExpand And oTextCursor.isEndOfWord() Then
+            oTextCursor.goLeft(1, bExpand)
+        End If
 
     ElseIf keyChar = ")" Then
         oTextCursor.gotoNextSentence(bExpand)
