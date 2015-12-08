@@ -1299,17 +1299,25 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ElseIf keyChar = "e" Then
         ' When the user enters "e", "ce", or "de":
 
-        ' The function gotoNextWord causes a lot of problems when trying to 
-        ' emulate vim behavior. The following method doesn't have to account 
+        ' Note: The function gotoNextWord causes a lot of problems when trying 
+        ' to emulate vim behavior. The following method doesn't have to account 
         ' for as many special cases.
 
         ' Moves the cursor to the end of the next word or end of file if there 
         ' are no more words.
 
-
-        ' Move cursor to right by two in case cursor is already at the end of a 
-        ' word.
+        ' Move cursor to right by two in case cursor is already at vim's 
+        ' definition of endOfWord.
         oTextCursor.goRight(2, bExpand)
+
+        ' If moving cursor to right by 2 places cursor just to the right of a 
+        ' "." then move cursor right again. This is needed to ensure that the 
+        ' cursor does not get stuck.
+        getCursor().gotoRange(oTextCursor.getEnd(), False)
+        getCursor().goLeft(1, True)
+        If getCursor().String = "." Then
+            oTextCursor.goRight(1, bExpand)
+        End If
 
         ' gotoEndOfWord gets stuck sometimes so manually moving the cursor 
         ' right is necessary in these cases.
@@ -1320,11 +1328,22 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
             End If
         Loop
 
-        ' gotoEndOfWord moves the cursor one character further than vim does so 
-        ' move it back one if end of word is reached and not expanding 
-        ' selection.
-        If NOT bExpand And oTextCursor.isEndOfWord() Then
-            oTextCursor.goLeft(1, bExpand)
+        If oTextCursor.isEndOfWord() Then
+            ' LibreOffice defines a "." directly following a word to be the 
+            ' endOfWord and vim does not. So in this case we need to move the 
+            ' the cursor to the left.
+            getCursor().gotoRange(oTextCursor.getEnd(), False)
+            getCursor().goLeft(1, True)
+            If getCursor().String = "." Then
+                oTextCursor.goLeft(1, bExpand)
+            End If
+
+            ' gotoEndOfWord moves the cursor one character further than vim 
+            ' does so move it back one if end of word is reached and not 
+            ' expanding selection.
+            If NOT bExpand Then
+                oTextCursor.goLeft(1, bExpand)
+            End If
         End If
 
     ElseIf keyChar = ")" Then
