@@ -93,10 +93,9 @@ Function formatVisualBase()
     ' then back to the start of the current line.
     getCursor().gotoEndOfLine(False)
     If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
-        If getCursor().goRight(1, False) Then
-            getCursor().goLeft(1, True)
-        End If
+        getCursor().goRight(1, False)
     End If
+    getCursor().goLeft(1, True)
     getCursor().gotoStartOfLine(True)
 End Function
 
