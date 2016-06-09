@@ -1,5 +1,7 @@
 # vibreoffice
 
+*(Unfortunately, vibreoffice is still in an experimental stage, and I no longer have much time to work on it. Hope you enjoy it anyway!)*
+
 vibreoffice is an extension for Libreoffice and OpenOffice that brings some of
 your favorite key bindings from vi/vim to your favorite office suite. It is
 obviously not meant to be feature-complete, but hopefully will be useful to
