@@ -36,6 +36,8 @@ global oXKeyHandler as object
 global MODE as string
 global VIEW_CURSOR as object
 global MULTIPLIER as integer
+global VISUAL_BASE as object ' Position of line that is first selected when 
+                             ' VISUAL_LINE mode is entered
 
 ' -----------
 ' Singletons
@@ -80,6 +82,23 @@ Sub setMode(modeName)
     setRawStatus(modeName)
 End Sub
 
+' Selects the current line and makes it the Visual base line for use with 
+' VISUAL_LINE mode.
+Function formatVisualBase()
+    dim oTextCursor
+    oTextCursor = getTextCursor()
+    VISUAL_BASE = getCursor().getPosition()
+
+    ' Select the current line by moving cursor to start of the bellow line and 
+    ' then back to the start of the current line.
+    getCursor().gotoEndOfLine(False)
+    If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
+        getCursor().goRight(1, False)
+    End If
+    getCursor().goLeft(1, True)
+    getCursor().gotoStartOfLine(True)
+End Function
+
 Function gotoMode(sMode)
     Select Case sMode
         Case "NORMAL":
@@ -89,13 +108,16 @@ Function gotoMode(sMode)
             setMode("INSERT")
         Case "VISUAL":
             setMode("VISUAL")
-
             dim oTextCursor
             oTextCursor = getTextCursor()
             ' Deselect TextCursor
             oTextCursor.gotoRange(oTextCursor.getStart(), False)
             ' Show TextCursor selection
             thisComponent.getCurrentController.Select(oTextCursor)
+        Case "VISUAL_LINE":
+            setMode("VISUAL_LINE")
+            ' Select the current line and set it as the Visual base line
+            formatVisualBase()
     End Select
 End Function
 
@@ -299,14 +321,15 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         iLen = Len(getCursor().getString())
         getCursor().setString(genString(oEvent.KeyChar, iLen))
 
+	' Normal Key (must be before MultiplierKey, so that 0 is seen as startOfLine)
+    ElseIf ProcessNormalKey(oEvent.KeyChar, oEvent.Modifiers) Then
+
     ' Multiplier Key
     ElseIf ProcessNumberKey(oEvent) Then
         bIsMultiplier = True
         delaySpecialReset()
 
-    ' Normal Key
-    ElseIf ProcessNormalKey(oEvent.KeyChar, oEvent.Modifiers) Then
-        ' Pass
+            ' Pass
 
     ' If is modified but doesn't match a normal command, allow input
     '   (Useful for built-in shortcuts like Ctrl+a, Ctrl+s, Ctrl+w)
@@ -322,7 +345,7 @@ function KeyHandler_KeyPressed(oEvent) as boolean
         delaySpecialReset()
 
     ' If standard movement key (in VISUAL mode) like arrow keys, home, end
-    ElseIf MODE = "VISUAL" And ProcessStandardMovementKey(oEvent) Then
+    ElseIf (MODE = "VISUAL" Or MODE = "VISUAL_LINE") And ProcessStandardMovementKey(oEvent) Then
         ' Pass
 
     ' If bIsSpecial but nothing matched, return to normal mode
@@ -376,8 +399,9 @@ Function ProcessGlobalKey(oEvent)
     bMatched = True
     bIsControl = (oEvent.Modifiers = 2) or (oEvent.Modifiers = 8)
 
-    ' PRESSED ESCAPE (or ctrl+[)
-    if oEvent.KeyCode = 1281 Or (oEvent.KeyCode = 1315 And bIsControl) Then
+    ' keycode can be viewed here: http://api.libreoffice.org/docs/idl/ref/namespacecom_1_1sun_1_1star_1_1awt_1_1Key.html
+    ' PRESSED ESCAPE (or ctrl+[) (or ctrl+C)
+    if oEvent.KeyCode = 1281 Or (oEvent.KeyCode = 1315 And bIsControl) Or (oEvent.KeyCode = 514 And bIsControl) Then
         ' Move cursor back if was in INSERT (but stay on same line)
         If MODE <> "NORMAL" And Not getCursor().isAtStartOfLine() Then
             getCursor().goLeft(1, False)
@@ -398,7 +422,7 @@ Function ProcessStandardMovementKey(oEvent)
 
     bMatched = True
 
-    If MODE <> "VISUAL" Then
+    If (MODE <> "VISUAL" And MODE <> "VISUAL_LINE") Then
         bMatched = False
         'Pass
     ElseIf c = 1024 Then
@@ -411,6 +435,8 @@ Function ProcessStandardMovementKey(oEvent)
         ProcessMovementKey("l", True)
     ElseIf c = 1028 Then
         ProcessMovementKey("^", True)
+    ElseIf c = "0" Then
+        ProcessMovementKey("0", True) ' key for zero (0)
     ElseIf c = 1029 Then
         ProcessMovementKey("$", True)
     Else
@@ -444,12 +470,13 @@ Function ProcessModeKey(oEvent)
     End If
 
     ' Mode matching
-    dim bMatched
+    dim bMatched, oTextCursor
     bMatched = True
+    oTextCursor = getTextCursor()
     Select Case oEvent.KeyChar
         ' Insert modes
         Case "i", "a", "I", "A", "o", "O":
-            If oEvent.KeyChar = "a" Then getCursor().goRight(1, False)
+            If oEvent.KeyChar = "a" And NOT oTextCursor.isEndOfParagraph() Then getCursor().goRight(1, False)
             If oEvent.KeyChar = "I" Then ProcessMovementKey("^")
             If oEvent.KeyChar = "A" Then ProcessMovementKey("$")
 
@@ -464,7 +491,7 @@ Function ProcessModeKey(oEvent)
             End If
 
             If oEvent.KeyChar = "O" Then
-                ProcessMovementKey("^")
+                ProcessMovementKey("0")
                 getCursor().setString(chr(13))
                 If Not getCursor().isAtStartOfLine() Then
                     ProcessMovementKey("h")
@@ -476,6 +503,8 @@ Function ProcessModeKey(oEvent)
             gotoMode("INSERT")
         Case "v":
             gotoMode("VISUAL")
+        Case "V":
+            gotoMode("VISUAL_LINE")
         Case Else:
             bMatched = False
     End Select
@@ -487,7 +516,7 @@ Function ProcessNormalKey(keyChar, modifiers)
     dim i, bMatched, bIsVisual, iIterations, bIsControl
     bIsControl = (modifiers = 2) or (modifiers = 8)
 
-    bIsVisual = (MODE = "VISUAL") ' is this hardcoding bad? what about visual block?
+    bIsVisual = (MODE = "VISUAL" Or MODE = "VISUAL_LINE") ' is this hardcoding bad? what about visual block?
 
     ' ----------------------
     ' 1. Check Movement Key
@@ -542,8 +571,10 @@ Function ProcessNormalKey(keyChar, modifiers)
     '   after that. Fix?
     ' --------------------
     If keyChar = "p" or keyChar = "P" Then
+        dim oTextCursor
+        oTextCursor = getTextCursor()
         ' Move cursor right if "p" to paste after cursor
-        If keyChar = "p" Then
+        If keyChar = "p" And NOT oTextCursor().isEndOfParagraph() Then
             ProcessMovementKey("l", False)
         End If
 
@@ -567,7 +598,7 @@ Function ProcessNormalKey(keyChar, modifiers)
     End If
 
     ' Only 'x' or Special (dd, cc) can be done more than once
-    If keyChar <> "x" and getSpecial() = "" Then
+    If keyChar <> "x" And keyChar <> "X" And getSpecial() = "" Then
         iIterations = 1
     End If
     For i = 1 To iIterations
@@ -616,7 +647,7 @@ Function ProcessSpecialKey(keyChar)
             bIsSpecialCase = (keyChar = "d" And getSpecial() = "d") Or (keyChar = "c" And getSpecial() = "c")
 
             If bIsSpecialCase Then
-                ProcessMovementKey("^", False)
+                ProcessMovementKey("0", False)
                 ProcessMovementKey("j", True)
 
                 oTextCursor = getTextCursor()
@@ -635,7 +666,7 @@ Function ProcessSpecialKey(keyChar)
 
 
         ' visual mode: delete selection
-        ElseIf MODE = "VISUAL" Then
+        ElseIf MODE = "VISUAL" Or MODE = "VISUAL_LINE" Then
             oTextCursor = getTextCursor()
             thisComponent.getCurrentController.Select(oTextCursor)
 
@@ -663,13 +694,54 @@ Function ProcessSpecialKey(keyChar)
     ElseIf keyChar = "r" Then
         setSpecial("r")
 
+	' gg to go to beginning of text
+	ElseIf keyChar = "g" Then
+		If bIsSpecial Then
+			If getSpecial() = "g" Then
+                ' If cursor is to left of current visual selection then select 
+                ' from right end of the selection to the start of file.
+                ' If cursor is to right of current visual selection then select 
+                ' from left end of the selection to the start of file.
+                If MODE = "VISUAL" Then
+                    dim oldPos
+                    oldPos = getCursor().getPosition()
+                    getCursor().gotoRange(getCursor().getStart(), True)
+                    If NOT samePos(getCursor().getPosition(), oldPos) Then
+                        getCursor().gotoRange(getCursor().getEnd(), False)
+                    End If
+
+                ' If in VISUAL_LINE mode and cursor is bellow the Visual base 
+                ' line then move it to the Visual base line, reformat the 
+                ' Visual base line, and move cursor to start of file.
+                ElseIf MODE = "VISUAL_LINE" Then
+                    Do Until getCursor().getPosition().Y() <= VISUAL_BASE.Y()
+                        getCursor().goUp(1, False)
+                    Loop
+                    If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
+                        formatVisualBase()
+                    End If
+                End If
+
+                dim bExpand
+                bExpand = MODE = "VISUAL" Or MODE = "VISUAL_LINE"
+                getCursor().gotoStart(bExpand)
+			End If
+		ElseIf MODE = "NORMAL" Or MODE = "VISUAL" Or MODE = "VISUAL_LINE" Then
+			setSpecial("g")
+		End If
+			
+		
     ' Otherwise, ignore if bIsSpecial
     ElseIf bIsSpecial Then
         bMatched = False
 
 
-    ElseIf keyChar = "x" Then
+    ElseIf keyChar = "x" Or keyChar = "X" Then
         oTextCursor = getTextCursor()
+        If keyChar = "X" And MODE <> "VISUAL" And MODE <> "VISUAL_LINE" Then
+            oTextCursor.collapseToStart()
+            oTextCursor.goLeft(1, True)
+        End If
         thisComponent.getCurrentController.Select(oTextCursor)
         yankSelection(True)
 
@@ -680,8 +752,8 @@ Function ProcessSpecialKey(keyChar)
         gotoMode("NORMAL")
 
     ElseIf keyChar = "D" Or keyChar = "C" Then
-        If MODE = "VISUAL" Then
-            ProcessMovementKey("^", False)
+        If MODE = "VISUAL" Or MODE = "VISUAL_LINE" Then
+            ProcessMovementKey("0", False)
             ProcessMovementKey("$", True)
             ProcessMovementKey("l", True)
         Else
@@ -702,7 +774,7 @@ Function ProcessSpecialKey(keyChar)
 
     ' S only valid in NORMAL mode
     ElseIf keyChar = "S" And MODE = "NORMAL" Then
-        ProcessMovementKey("^", False)
+        ProcessMovementKey("0", False)
         ProcessMovementKey("$", True)
         yankSelection(True)
         gotoMode("INSERT")
@@ -740,7 +812,7 @@ Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
 
     If Not bIsBackwards Then
         ' VISUAL mode will goRight AFTER the selection
-        If MODE <> "VISUAL" Then
+        If MODE <> "VISUAL" And MODE <> "VISUAL_LINE" Then
             ' Start searching from next character
             oTextCursor.goRight(1, bExpand)
         End If
@@ -800,7 +872,7 @@ Function ProcessSearchKey(oTextCursor, searchType, keyChar, bExpand)
 
     ' If matched, then we want to select PAST the character
     ' Else, this will counteract some weirdness. hack either way
-    If Not bIsBackwards And MODE = "VISUAL" Then
+    If Not bIsBackwards And (MODE = "VISUAL" Or MODE = "VISUAL_LINE") Then
         oTextCursor.goRight(1, bExpand)
     End If
 
@@ -921,22 +993,157 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
     ElseIf keyChar = "h" Then
         oTextCursor.goLeft(1, bExpand)
 
-    ' oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn't (I dont know why).
-    ' So this is a weird hack
     ElseIf keyChar = "k" Then
-        'oTextCursor.goUp(1, False)
-        getCursor().goUp(1, bExpand)
+        If MODE = "VISUAL_LINE" Then
+            ' This variable represents the line that the user last selected.
+            dim lastSelected
+
+            ' If cursor is already on or above the Visual base line.
+            If getCursor().getPosition().Y() <= VISUAL_BASE.Y() Then
+                lastSelected = getCursor().getPosition().Y()
+                ' If on Visual base line then format it for selecting above 
+                ' lines.
+                If VISUAL_BASE.Y() = getCursor().getPosition().Y() Then
+                    getCursor().gotoEndOfLine(False)
+                    ' Make sure that cursor is on the start of the line bellow 
+                    ' the Visual base line. This is needed to make sure the 
+                    ' new line character will be selected.
+                    If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
+                        getCursor().goRight(1, False)
+                    End If
+                End If
+
+                ' Move cursor to start of the line above last selected line.
+                Do Until getCursor().getPosition().Y() < lastSelected
+                    If NOT getCursor().goUp(1, bExpand) Then
+                        Exit Do
+                    End If
+                Loop
+                getCursor().gotoStartOfLine(bExpand)
+
+            ' If cursor is already bellow the Visual base line.
+            ElseIf getCursor().getPosition().Y() > VISUAL_BASE.Y() Then
+                ' Cursor will be under the last selected line so it needs to 
+                ' be moved up before setting lastSelected.
+                getCursor().goUp(1, bExpand)
+                lastSelected = getCursor().getPosition().Y()
+                ' Move cursor up another line to deselect the last selected
+                ' line.
+                getCursor().goUp(1, bExpand)
+
+                ' For the case when the last selected line was the line bellow 
+                ' the Visual base line, simply reformat the Visual base line.
+                If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
+                    formatVisualBase()
+
+                Else
+                    ' Make sure that the current line is fully selected.
+                    getCursor().gotoEndOfLine(bExpand)
+
+                    ' Make sure cursor is at the start of the line we 
+                    ' deselected. It needs to always be bellow the user's 
+                    ' selection when under the Visual base line.
+                    If getCursor().getPosition().Y() < lastSelected Then
+                        getCursor().goRight(1, bExpand)
+                    End If
+                End If
+
+            End If
+
+        Else
+        ' oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn't (I dont know why).
+        ' So this is a weird hack
+            'oTextCursor.goUp(1, False)
+            getCursor().goUp(1, bExpand)
+        End If
         bSetCursor = False
 
     ElseIf keyChar = "j" Then
-        'oTextCursor.goDown(1, False)
-        getCursor().goDown(1, bExpand)
+        If MODE = "VISUAL_LINE" Then
+            ' If cursor is already on or bellow the Visual base line.
+            If getCursor().getPosition().Y() >= VISUAL_BASE.Y() Then
+                ' If on Visual base line then format it for selecting bellow 
+                ' lines.
+                If VISUAL_BASE.Y() = getCursor().getPosition().Y() Then
+                    getCursor().gotoStartOfLine(False)
+                    getCursor().gotoEndOfLine(bExpand)
+                    ' Move cursor to next line if not already there.
+                    If getCursor().getPosition().Y() = VISUAL_BASE.Y() Then
+                        getCursor().goRight(1, bExpand)
+                    End If
+
+                End If
+
+                If getCursor().goDown(1, bExpand) Then
+                    getCursor().gotoStartOfLine(bExpand)
+
+                ' If cursor is on last line then select from current position 
+                ' to end of line.
+                Else
+                    getCursor().gotoEndOfLine(bExpand)
+                End If
+
+            ' If cursor is above the Visual base line.
+            ElseIf getCursor().getPosition().Y() < VISUAL_BASE.Y() Then
+                ' Move cursor to start of bellow line.
+                getCursor().goDown(1, bExpand)
+                getCursor().gotoStartOfLine(bExpand)
+            End If
+
+        Else
+        ' oTextCursor.goUp and oTextCursor.goDown SHOULD work, but doesn't (I dont know why).
+        ' So this is a weird hack
+            'oTextCursor.goDown(1, False)
+            getCursor().goDown(1, bExpand)
+        End If
         bSetCursor = False
+
     ' ----------
 
-    ElseIf keyChar = "^" Then
+    ElseIf keyChar = "0" Then
         getCursor().gotoStartOfLine(bExpand)
         bSetCursor = False
+    ElseIf keyChar = "^" Then
+        ' This variable represents the original line the cursor was on before 
+        ' any of the following changes.
+        dim oldLine
+        oldLine = getCursor().getPosition().Y()
+
+        ' Select all of the current line and put it into a string.
+        getCursor().gotoEndOfLine(False)
+        If getCursor().getPosition.Y() > oldLine Then
+            ' If gotoEndOfLine moved cursor to next line then move it back.
+            getCursor().goLeft(1, False)
+        End If
+        getCursor().gotoStartOfLine(True)
+        dim s as String
+        s = getCursor().String
+
+        ' Undo any changes made to the view cursor, then move to start of 
+        ' line. This way any previous selction made by the user will remain.
+        getCursor().gotoRange(oTextCursor, False)
+        getCursor().gotoStartOfLine(bExpand)
+
+        ' This integer will be used to determine the position of the first 
+        ' character in the line that is not a space or a tab.
+        dim i as Integer
+        i = 1
+
+        ' Iterate through the characters in the string until a character that 
+        ' is not a space or a tab is found.
+        Do While i <= Len(s)
+            dim c
+            c = Mid(s,i,1)
+            If c <> " " And c <> Chr(9) Then
+                Exit Do
+            End If
+            i = i + 1
+        Loop
+
+        ' Move the cursor to the first non space/tab character.
+        getCursor().goRight(i - 1, bExpand)
+        bSetCursor = False
+
     ElseIf keyChar = "$" Then
         dim oldPos, newPos
         oldPos = getCursor().getPosition()
@@ -953,12 +1160,190 @@ Function ProcessMovementKey(keyChar, Optional bExpand, Optional keyModifiers)
         ' maybe eventually cursorGoto... should return True/False for bsetCursor
         bSetCursor = False
 
+    ElseIf keyChar = "G" Then
+        If MODE = "VISUAL_LINE" Then
+            ' If cursor is above Visual base line then move cursor down to it. 
+            Do Until getCursor().getPosition.Y() >= VISUAL_BASE.Y()
+                getCursor().goDown(1, False)
+            Loop
+            ' If cursor is on Visual base line then move it to start of line.
+            If getCursor().getPosition.Y() = VISUAL_BASE.Y() Then
+                getCursor().gotoStartOfLine(False)
+            End If
+        End If
+        getCursor().gotoEnd(bExpand)
+        bSetCursor = False
+
     ElseIf keyChar = "w" or keyChar = "W" Then
-        oTextCursor.gotoNextWord(bExpand)
+        ' For the case when the user enters "cw":
+        If getSpecial() = "c" Then
+            ' If the cursor is on a word then delete from the current position to 
+            ' the end of the word.
+            ' If the cursor is not on a word then delete from the current position 
+            ' to the start of the next word or until the end of the paragraph.
+
+            If NOT oTextCursor.isEndOfParagraph() Then
+               ' Move cursor to right in case it is already at start or end of 
+               ' word.
+               oTextCursor.goRight(1, bExpand)
+            End If
+
+            Do Until oTextCursor.isEndOfWord() Or oTextCursor.isStartOfWord() Or oTextCursor.isEndOfParagraph()
+                oTextCursor.goRight(1, bExpand)
+            Loop
+
+        ' For the case when the user enters "w" or "dw":
+        Else
+            ' Note: For "w", using gotoNextWord would mean that the cursor 
+            ' would not be moved to the next word when it involved moving down 
+            ' a line and that line happened to begin with whitespace. It would 
+            ' also mean that the cursor would not skip over lines that only 
+            ' contain whitespace.
+
+            If NOT (getSpecial() = "d" And oTextCursor.isEndOfParagraph()) Then
+                ' Move cursor to right in case cursor is already at the start 
+                ' of a word. 
+                ' Additionally for "w", move right in case already on an empty 
+                ' line.
+                oTextCursor.goRight(1, bExpand)
+            End If
+
+            ' Stop looping when the cursor reaches the start of a word, an empty 
+            ' line, or cannot be moved further (reaches end of file).
+            ' Additionally, if "dw" then stop looping if end of paragraph is reached.
+            Do Until oTextCursor.isStartOfWord() Or (oTextCursor.isStartOfParagraph() And oTextCursor.isEndOfParagraph())
+                ' If "dw" then do not delete past the end of the line
+                If getSpecial() = "d" And oTextCursor.isEndOfParagraph() Then
+                    Exit Do
+                ' If "w" then stop advancing cursor if cursor can no longer 
+                ' move right
+                ElseIf NOT oTextCursor.goRight(1, bExpand) Then
+                    Exit Do
+                End If
+            Loop
+        End If
     ElseIf keyChar = "b" or keyChar = "B" Then
-        oTextCursor.gotoPreviousWord(bExpand)
+        ' When the user enters "b", "cb", or "db":
+
+        ' Note: The function gotoPreviousWord causes a lot of problems when 
+        ' trying to emulate vim behavior. The following method doesn't have to 
+        ' account for as many special cases.
+
+        ' "b": Moves the cursor to the start of the previous word or until an empty 
+        ' line is reached.
+
+        ' "db": Does same thing as "b" only it deletes everything between the 
+        ' orginal cursor position and the new cursor position. The exception to 
+        ' this is that if the original cursor position was at the start of a 
+        ' paragraph and the new cursor position is on a separate paragraph with 
+        ' at least two words then don't delete the new line char to the "left" 
+        ' of the original paragraph.
+
+        ' "dc": Does the same as "db" only the new line char described in "db" 
+        ' above is never deleted.
+
+
+        ' This variable is used to tell whether or not we need to make a 
+        ' distinction between "b", "cb", and "db".
+        dim dc_db as boolean
+
+        ' Move cursor to left in case cursor is already at the start of a word 
+        ' or on on an empty line. If cursor can move left and user enterd "dc" 
+        ' or "db" and the cursor was originally on the start of a paragraph 
+        ' then set dc_db to true and unselect the new line character separating 
+        ' the paragraphs. If cursor can't move left then there is no line above 
+        ' the current one and no need to make a distinction between "b", "cb", 
+        ' and "db".
+        dc_db = False
+        If oTextCursor.isStartOfParagraph() And oTextCursor.goLeft(1, bExpand) Then
+            If getSpecial() = "c" Or getSpecial() = "d" Then
+                dc_db = True
+                ' If all conditions above are met then unselect the \n char.
+                oTextCursor.collapseToStart()
+            End If
+        End If
+
+        ' Stop looping when the cursor reaches the start of a word, an empty 
+        ' line, or cannot be moved further (reaches start of file).
+        Do Until oTextCursor.isStartOfWord() Or (oTextCursor.isStartOfParagraph() And oTextCursor.isEndOfParagraph())
+            ' Stop moving cursor if cursor can no longer move left
+            If NOT oTextCursor.goLeft(1, bExpand) Then
+                Exit Do
+            End If
+        Loop
+
+        If dc_db Then
+            ' Make a clone of oTextCursor called oTextCursor2 and use it to 
+            ' check if there are at least two words in the "new" paragraph. 
+            ' If there are <2 words then the loop will stop when the cursor 
+            ' cursor reaches the start of a paragraph. If there >=2 words then 
+            ' then the loop will stop when the cursor reaches the end of a word.
+            dim oTextCursor2
+            oTextCursor2 = getCursor().getText.createTextCursorByRange(oTextCursor)
+            Do Until oTextCursor2.isEndOfWord() Or oTextCursor2.isStartOfParagraph()
+                oTextCursor2.goLeft(1, bExpand)
+            Loop
+            ' If there are less than 2 words on the "new" paragraph then set 
+            ' oTextCursor to oTextCursor 2. This is because vim's behavior is 
+            ' to clear the "new" paragraph under these conditions.
+            If oTextCursor2.isStartOfParagraph() Then
+                oTextCursor = oTextCursor2
+                oTextCursor.gotoRange(oTextCursor.getStart(), bExpand)
+                ' If user entered "db" then reselect the \n char from before.
+                If getSpecial() = "d" Then
+                    oTextCursor.goRight(1, bExpand)
+                End If
+            End If
+        End If
     ElseIf keyChar = "e" Then
-        oTextCursor.gotoEndOfWord(bExpand)
+        ' When the user enters "e", "ce", or "de":
+
+        ' Note: The function gotoNextWord causes a lot of problems when trying 
+        ' to emulate vim behavior. The following method doesn't have to account 
+        ' for as many special cases.
+
+        ' Moves the cursor to the end of the next word or end of file if there 
+        ' are no more words.
+
+        ' Move cursor to right by two in case cursor is already at vim's 
+        ' definition of endOfWord.
+        oTextCursor.goRight(2, bExpand)
+
+        ' If moving cursor to right by 2 places cursor just to the right of a 
+        ' "." then move cursor right again. This is needed to ensure that the 
+        ' cursor does not get stuck.
+        getCursor().gotoRange(oTextCursor.getEnd(), False)
+        getCursor().goLeft(1, True)
+        If getCursor().String = "." Then
+            oTextCursor.goRight(1, bExpand)
+        End If
+
+        ' gotoEndOfWord gets stuck sometimes so manually moving the cursor 
+        ' right is necessary in these cases.
+        Do Until oTextCursor.gotoEndOfWord(bExpand)
+            ' If cursor can no longer move right then break loop
+            If NOT oTextCursor.goRight(1, bExpand) Then
+                Exit Do
+            End If
+        Loop
+
+        If oTextCursor.isEndOfWord() Then
+            ' LibreOffice defines a "." directly following a word to be the 
+            ' endOfWord and vim does not. So in this case we need to move the 
+            ' the cursor to the left.
+            getCursor().gotoRange(oTextCursor.getEnd(), False)
+            getCursor().goLeft(1, True)
+            If getCursor().String = "." Then
+                oTextCursor.goLeft(1, bExpand)
+            End If
+
+            ' gotoEndOfWord moves the cursor one character further than vim 
+            ' does so move it back one if end of word is reached and not 
+            ' expanding selection.
+            If NOT bExpand Then
+                oTextCursor.goLeft(1, bExpand)
+            End If
+        End If
 
     ElseIf keyChar = ")" Then
         oTextCursor.gotoNextSentence(bExpand)
